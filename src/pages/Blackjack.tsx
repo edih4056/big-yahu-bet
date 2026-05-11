@@ -1,26 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Hand, RotateCw } from "lucide-react";
+import {
+  Coins,
+  Hand,
+  RotateCw,
+  Shield,
+  HandMetal,
+  Layers,
+} from "lucide-react";
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { playSfx } from "@/lib/sound";
 import { fireConfetti } from "@/lib/confetti";
 import {
   BlackjackEngine,
   handTotal,
-  type Card as TCard,
   type PlayerHand,
 } from "@/games/blackjack/engine";
 import { PlayingCard } from "@/games/blackjack/Card";
 
-const CHIP_VALUES = [1, 5, 25, 100, 500, 1000];
+const CHIP_VALUES = [5, 25, 100, 500, 1000, 5000];
 const CHIP_COLORS: Record<number, string> = {
-  1: "linear-gradient(135deg, #FFFFFF 0%, #C0C0C0 100%)",
-  5: "linear-gradient(135deg, #FF3B6B 0%, #B8284D 100%)",
-  25: "linear-gradient(135deg, #00E676 0%, #00A050 100%)",
-  100: "linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)",
-  500: "linear-gradient(135deg, #C26BFF 0%, #7B61FF 100%)",
-  1000: "linear-gradient(135deg, #FFE15A 0%, #FFC842 100%)",
+  5: "linear-gradient(135deg, #FFFFFF 0%, #C0C0C0 100%)",
+  25: "linear-gradient(135deg, #FF3B6B 0%, #B8284D 100%)",
+  100: "linear-gradient(135deg, #00E676 0%, #00A050 100%)",
+  500: "linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)",
+  1000: "linear-gradient(135deg, #C26BFF 0%, #7B61FF 100%)",
+  5000: "linear-gradient(135deg, #FFE15A 0%, #FFC842 50%, #FF8A00 100%)",
 };
 
 export default function Blackjack() {
@@ -28,6 +34,8 @@ export default function Blackjack() {
   const placeBet = useWalletStore((s) => s.bet);
   const winCoins = useWalletStore((s) => s.win);
   const pushHistory = useWalletStore((s) => s.pushHistory);
+  const currency = useWalletStore((s) => s.currency);
+  const fmt = (n: number) => formatMoney(n, currency);
 
   const engineRef = useRef(new BlackjackEngine(6));
   const [, force] = useState(0);
@@ -44,6 +52,7 @@ export default function Blackjack() {
 
   const totalActiveBet = useMemo(
     () => eng.hands.reduce((s, h) => s + h.bet, 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [eng.hands.length, eng.state]
   );
 
@@ -52,7 +61,7 @@ export default function Blackjack() {
   function addChip(v: number) {
     if (eng.state !== "betting" && eng.state !== "settled") return;
     if (balance < pendingBet + v) {
-      setMessage("Not enough coins for that chip.");
+      setMessage("Not enough for that chip.");
       return;
     }
     setPendingBet((b) => b + v);
@@ -69,7 +78,7 @@ export default function Blackjack() {
     }
     const ok = placeBet("blackjack", pendingBet);
     if (!ok) {
-      setMessage("Not enough coins.");
+      setMessage("Not enough.");
       return;
     }
     eng.startHand(pendingBet);
@@ -80,11 +89,21 @@ export default function Blackjack() {
     if (eng.state === "settled") settle();
   }
 
-  function rebet() {
+  function rebet(multiplier = 1) {
     if (sessionLog.length === 0) return;
-    const last = sessionLog[0].bet;
+    const last = Math.floor(sessionLog[0].bet * multiplier);
     if (balance < last) return;
     setPendingBet(last);
+  }
+
+  function halfBet() {
+    setPendingBet((p) => Math.max(0, Math.floor(p / 2)));
+  }
+  function doubleBet() {
+    setPendingBet((p) => Math.min(balance, p * 2 || 5));
+  }
+  function maxBet() {
+    setPendingBet(Math.min(balance, 5000));
   }
 
   function endTurnSettle() {
@@ -105,7 +124,7 @@ export default function Blackjack() {
       const extra = eng.hands[eng.activeHandIdx].bet;
       const ok = placeBet("blackjack", extra);
       if (!ok) {
-        setMessage("Not enough coins to double.");
+        setMessage("Not enough to double.");
         return;
       }
       eng.double();
@@ -114,7 +133,7 @@ export default function Blackjack() {
       const extra = eng.hands[eng.activeHandIdx].bet;
       const ok = placeBet("blackjack", extra);
       if (!ok) {
-        setMessage("Not enough coins to split.");
+        setMessage("Not enough to split.");
         return;
       }
       eng.split();
@@ -122,17 +141,13 @@ export default function Blackjack() {
     }
     refresh();
     if (eng.state !== "player") {
-      // Dealer plays automatically inside settle path
       endTurnSettle();
     }
   }
 
   function settle() {
     const payout = eng.payout();
-    const totalBetTaken = eng.hands.reduce(
-      (s, h) => s + (h.doubled ? h.bet : h.bet),
-      0
-    );
+    const totalBetTaken = eng.hands.reduce((s, h) => s + h.bet, 0);
     if (payout > 0) winCoins("blackjack", payout);
     const net = payout - totalBetTaken;
     setSessionLog((l) =>
@@ -154,7 +169,7 @@ export default function Blackjack() {
       playSfx("bigWin");
       fireConfetti("big");
     } else if (net > 0) {
-      setMessage(`You win ${formatCoins(net)} YAHU`);
+      setMessage(`You win ${fmt(net)}`);
       playSfx("win");
       if (net >= totalBetTaken * 1.5) fireConfetti("small");
     } else if (net === 0) {
@@ -167,7 +182,6 @@ export default function Blackjack() {
     setOriginalBet(0);
   }
 
-  // Periodic refresh for engine internals (no-op but keeps list reactive)
   useEffect(() => {
     refresh();
   }, []);
@@ -181,55 +195,82 @@ export default function Blackjack() {
   return (
     <div className="px-4 lg:px-6 py-4 grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
       <div
-        className="rounded-3xl p-4 sm:p-6 lg:p-8 relative overflow-hidden border border-emerald-500/20"
+        className="rounded-3xl p-4 sm:p-6 lg:p-8 relative overflow-hidden border border-white/5"
         style={{
+          // Rainbet-inspired dark navy
           background:
-            "radial-gradient(ellipse at top, #14543A 0%, #0E2A1B 60%, #061811 100%)",
+            "radial-gradient(ellipse at top, #1B1F3A 0%, #0F1226 60%, #07091A 100%)",
         }}
       >
-        {/* Big Yahu watermark */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06]">
-          <div className="text-[140px] font-extrabold tracking-tight">
-            BIG YAHU
+        {/* Subtle table outline */}
+        <div className="absolute inset-x-6 top-24 bottom-44 rounded-[50%] border border-white/[0.06] pointer-events-none" />
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center pointer-events-none select-none">
+          <div className="text-[10px] uppercase tracking-[0.4em] text-white/15 font-semibold">
+            BLACKJACK PAYS 3 TO 2
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.4em] text-white/15 font-semibold mt-1">
+            INSURANCE PAYS 2 TO 1
           </div>
         </div>
 
-        <div className="relative">
-          <h1 className="heading text-2xl sm:text-3xl">Blackjack 21</h1>
-          <div className="text-text-secondary text-sm">
-            6-Deck shoe · S17 · Blackjack pays 3:2
+        <div className="relative flex items-center gap-2 mb-4">
+          <div
+            className="w-7 h-7 rounded-md flex items-center justify-center"
+            style={{
+              background:
+                "linear-gradient(135deg, #7B61FF 0%, #C26BFF 100%)",
+            }}
+          >
+            <span className="text-sm">♠</span>
+          </div>
+          <div>
+            <h1 className="heading text-lg sm:text-xl leading-none">Blackjack</h1>
+            <div className="text-[10px] uppercase tracking-wider text-text-secondary">
+              6-Deck · S17 · BJ 3:2
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1 text-[10px] uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-md">
+            <Shield size={11} /> Fair Play
           </div>
         </div>
 
         {/* Dealer */}
-        <div className="relative mt-6 mb-8">
-          <div className="text-xs uppercase tracking-wider text-emerald-200/60 mb-2 text-center">
-            Dealer · {eng.state === "player" || eng.state === "betting"
-              ? dealerCards.length > 0
-                ? dealerTotal || "?"
-                : "—"
-              : handTotal(dealerCards).total || "—"}
+        <div className="relative mt-4 mb-8 min-h-[124px]">
+          <div className="text-xs uppercase tracking-[0.3em] text-white/40 mb-3 text-center font-semibold">
+            Dealer
+            {dealerCards.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 rounded-md bg-bg-elevated/80 text-white text-xs">
+                {eng.state === "player" || eng.state === "betting"
+                  ? dealerTotal || "?"
+                  : handTotal(dealerCards).total || "—"}
+              </span>
+            )}
           </div>
-          <div className="flex justify-center gap-2 min-h-[112px]">
+          <div className="flex justify-center gap-2">
             <AnimatePresence>
               {dealerCards.map((c, i) => (
                 <PlayingCard key={c.id} card={c} delay={i * 0.12} />
               ))}
             </AnimatePresence>
+            {dealerCards.length === 0 && (
+              <div className="opacity-30 text-text-secondary text-xs">
+                Waiting for deal
+              </div>
+            )}
           </div>
         </div>
 
         {/* Status */}
-        <div className="text-center mb-4">
-          <div className="inline-block px-4 py-1.5 rounded-full bg-black/40 backdrop-blur text-sm font-semibold border border-white/10">
+        <div className="relative text-center mb-6">
+          <div className="inline-block px-4 py-1.5 rounded-full bg-black/50 backdrop-blur text-sm font-semibold border border-white/10">
             {message}
           </div>
         </div>
 
-        {/* Player hands */}
-        <div className="flex flex-wrap items-end justify-center gap-6 min-h-[120px]">
+        {/* Player */}
+        <div className="relative flex flex-wrap items-end justify-center gap-6 min-h-[160px]">
           {eng.hands.length === 0 ? (
-            <BetSpot pending={pendingBet} />
+            <BetSpot pending={pendingBet} fmt={fmt} />
           ) : (
             eng.hands.map((h, i) => (
               <PlayerHandView
@@ -237,23 +278,21 @@ export default function Blackjack() {
                 hand={h}
                 isActive={i === eng.activeHandIdx && eng.state === "player"}
                 index={i}
+                fmt={fmt}
               />
             ))
           )}
         </div>
 
         {/* Chips */}
-        <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
+        <div className="mt-6 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
           {CHIP_VALUES.map((v) => (
-            <button
+            <ChipBtn
               key={v}
+              value={v}
               onClick={() => addChip(v)}
               disabled={!canBet}
-              className="w-14 h-14 rounded-full font-extrabold text-sm shadow-lg border-4 border-white/30 hover:scale-110 active:scale-95 transition disabled:opacity-40 disabled:hover:scale-100"
-              style={{ background: CHIP_COLORS[v] }}
-            >
-              {v}
-            </button>
+            />
           ))}
           <button
             onClick={clearChips}
@@ -263,7 +302,7 @@ export default function Blackjack() {
             Clear
           </button>
           <button
-            onClick={rebet}
+            onClick={() => rebet(1)}
             disabled={!canBet || sessionLog.length === 0}
             className="btn-secondary text-sm flex items-center gap-1"
           >
@@ -271,42 +310,108 @@ export default function Blackjack() {
           </button>
         </div>
 
-        {/* Actions */}
-        <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-          {(canBet || eng.state === "settled") && (
+        {/* Action row (Rainbet style) */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-2xl mx-auto">
+          {canBet && (
             <button
               onClick={deal}
               disabled={pendingBet <= 0}
-              className="btn-primary text-base"
+              className="action-btn col-span-2 sm:col-span-4 bg-emerald-500/20 border-emerald-500/40 hover:bg-emerald-500/30"
             >
-              <Hand size={16} className="inline mr-2" /> Deal
+              <Hand size={18} className="mb-0.5 text-emerald-300" />
+              <span className="font-bold">Deal</span>
             </button>
           )}
           {inPlay && (
             <>
-              <ActBtn label="Hit" onClick={() => action("hit")} />
-              <ActBtn label="Stand" onClick={() => action("stand")} />
               <ActBtn
                 label="Double"
+                icon={
+                  <span className="font-extrabold text-emerald-300 text-base">
+                    x2
+                  </span>
+                }
                 onClick={() => action("double")}
-                disabled={!eng.canDouble() || balance < (eng.hands[eng.activeHandIdx]?.bet ?? 0)}
+                disabled={
+                  !eng.canDouble() ||
+                  balance < (eng.hands[eng.activeHandIdx]?.bet ?? 0)
+                }
+              />
+              <ActBtn
+                label="Hit"
+                icon={<HandMetal size={18} className="text-sky-300" />}
+                onClick={() => action("hit")}
+              />
+              <ActBtn
+                label="Stand"
+                icon={
+                  <span className="w-4 h-4 rounded-sm bg-rose-400/80 inline-block" />
+                }
+                onClick={() => action("stand")}
               />
               <ActBtn
                 label="Split"
+                icon={<Layers size={18} className="text-amber-300" />}
                 onClick={() => action("split")}
-                disabled={!eng.canSplit() || balance < (eng.hands[eng.activeHandIdx]?.bet ?? 0)}
+                disabled={
+                  !eng.canSplit() ||
+                  balance < (eng.hands[eng.activeHandIdx]?.bet ?? 0)
+                }
               />
             </>
           )}
         </div>
 
+        {/* Bet input row */}
+        <div className="mt-4 max-w-2xl mx-auto">
+          <div className="rounded-2xl bg-bg-card/60 border border-white/10 px-4 py-2.5 flex items-center gap-3">
+            <span className="text-text-secondary text-sm">Bet</span>
+            <input
+              type="number"
+              value={pendingBet}
+              onChange={(e) =>
+                setPendingBet(Math.max(0, Math.floor(Number(e.target.value) || 0)))
+              }
+              disabled={!canBet}
+              className="bg-transparent outline-none text-lg font-bold flex-1 min-w-0"
+              placeholder="0.00"
+            />
+            <span className="font-mono text-text-secondary text-sm">
+              {fmt(pendingBet)}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={halfBet}
+                disabled={!canBet}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
+              >
+                ½
+              </button>
+              <button
+                onClick={doubleBet}
+                disabled={!canBet}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
+              >
+                2×
+              </button>
+              <button
+                onClick={maxBet}
+                disabled={!canBet}
+                className="px-2.5 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
+              >
+                Max
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="mt-4 grid grid-cols-3 gap-2 max-w-md mx-auto">
-          <Stat label="Balance" value={formatCoins(balance)} />
+          <Stat label="Balance" value={fmt(balance)} />
           <Stat
             label="Pending"
-            value={formatCoins(canBet ? pendingBet : totalActiveBet)}
+            value={fmt(canBet ? pendingBet : totalActiveBet)}
           />
-          <Stat label="Original" value={formatCoins(originalBet)} />
+          <Stat label="Original" value={fmt(originalBet)} />
         </div>
       </div>
 
@@ -323,7 +428,7 @@ export default function Blackjack() {
             }`}
           >
             {sessionTotalNet >= 0 ? "+" : ""}
-            {formatCoins(sessionTotalNet)}
+            {fmt(sessionTotalNet)}
           </span>
         </div>
         <div className="text-xs uppercase tracking-wider text-text-secondary mb-2">
@@ -340,16 +445,14 @@ export default function Blackjack() {
               key={l.id}
               className="flex justify-between text-sm bg-bg-elevated/60 rounded-lg px-3 py-1.5"
             >
-              <span className="text-text-secondary">
-                Bet {formatCoins(l.bet)}
-              </span>
+              <span className="text-text-secondary">Bet {fmt(l.bet)}</span>
               <span
                 className={`font-semibold ${
                   l.net >= 0 ? "text-win" : "text-rose-300"
                 }`}
               >
                 {l.net >= 0 ? "+" : ""}
-                {formatCoins(l.net)}
+                {fmt(l.net)}
               </span>
             </div>
           ))}
@@ -361,10 +464,12 @@ export default function Blackjack() {
 
 function ActBtn({
   label,
+  icon,
   onClick,
   disabled,
 }: {
   label: string;
+  icon: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
 }) {
@@ -372,9 +477,33 @@ function ActBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="px-5 py-2.5 rounded-2xl bg-bg-card border border-white/10 hover:bg-accent/20 hover:border-accent/40 hover:shadow-glow-sm transition font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-bg-card disabled:hover:border-white/10"
+      className="action-btn bg-bg-card/60 border-white/10 hover:bg-accent/15 hover:border-accent/40"
     >
-      {label}
+      {icon}
+      <span className="font-bold mt-0.5">{label}</span>
+    </button>
+  );
+}
+
+function ChipBtn({
+  value,
+  onClick,
+  disabled,
+}: {
+  value: number;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="w-14 h-14 rounded-full font-extrabold text-xs shadow-lg border-4 border-white/30 hover:scale-110 active:scale-95 transition disabled:opacity-40 disabled:hover:scale-100 flex flex-col items-center justify-center"
+      style={{ background: CHIP_COLORS[value] }}
+    >
+      <span className={value >= 5000 ? "text-[11px]" : ""}>
+        {value >= 1000 ? `${value / 1000}K` : value}
+      </span>
     </button>
   );
 }
@@ -382,7 +511,7 @@ function ActBtn({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-black/40 rounded-xl px-3 py-2 backdrop-blur text-center">
-      <div className="text-[10px] uppercase tracking-wider text-emerald-200/60">
+      <div className="text-[10px] uppercase tracking-wider text-white/40">
         {label}
       </div>
       <div className="font-semibold">{value}</div>
@@ -390,21 +519,27 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BetSpot({ pending }: { pending: number }) {
+function BetSpot({
+  pending,
+  fmt,
+}: {
+  pending: number;
+  fmt: (n: number) => string;
+}) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div
         className={`w-32 h-32 rounded-full border-2 border-dashed flex items-center justify-center text-text-secondary transition ${
           pending > 0
             ? "border-gold/60 shadow-glow-gold"
-            : "border-emerald-300/30"
+            : "border-white/15"
         }`}
       >
         {pending > 0 ? (
           <div className="text-center">
             <div className="text-xs uppercase tracking-wider">Bet</div>
             <div className="font-extrabold gold-text text-xl">
-              {formatCoins(pending)}
+              {fmt(pending)}
             </div>
           </div>
         ) : (
@@ -419,10 +554,12 @@ function PlayerHandView({
   hand,
   isActive,
   index,
+  fmt,
 }: {
   hand: PlayerHand;
   isActive: boolean;
   index: number;
+  fmt: (n: number) => string;
 }) {
   const total = handTotal(hand.cards).total;
   const resultColor =
@@ -445,13 +582,11 @@ function PlayerHandView({
         ))}
       </div>
       <div className="flex items-center gap-2">
-        <div
-          className="px-2.5 py-0.5 rounded-full bg-black/40 text-xs font-bold backdrop-blur border border-white/10"
-        >
+        <div className="px-2.5 py-0.5 rounded-md bg-bg-elevated/80 text-xs font-bold border border-white/10">
           {hand.cards.length > 0 ? total : "—"}
         </div>
-        <div className="text-xs text-emerald-200/70">
-          Hand {index + 1} · Bet {formatCoins(hand.bet)}
+        <div className="text-xs text-white/50">
+          Hand {index + 1} · Bet {fmt(hand.bet)}
         </div>
       </div>
       {hand.result && (

@@ -1,4 +1,4 @@
-import { SlotMachine } from "@/games/slots/SlotMachine";
+import { SlotMachine, type SlotTheme } from "@/games/slots/SlotMachine";
 import {
   bookOfYahuConfig,
   YAHU_SYMBOL_INFO,
@@ -6,15 +6,22 @@ import {
   pickExpandingSymbol,
 } from "@/games/slots/bookOfYahu";
 
-const theme = {
+const theme: SlotTheme = {
   name: "Book of Yahu",
-  bg: "linear-gradient(135deg, #1F0E03 0%, #5B2D14 50%, #C58F2A 100%)",
-  frame: "#FFD978",
-  symbolBg: "#1a0e04",
-  glow: "rgba(255, 217, 120, 0.4)",
+  cabinet:
+    "linear-gradient(180deg, #92400E 0%, #78350F 60%, #451A03 100%)",
+  trim: "#FFD978",
+  panel:
+    "linear-gradient(180deg, #1B0F03 0%, #2C1A06 60%, #0F0A04 100%)",
   cell:
-    "bg-gradient-to-br from-[#FFD978]/10 to-[#5B2D14]/30 border border-[#FFD978]/30",
+    "bg-gradient-to-b from-amber-50 to-amber-100 border border-amber-300/40",
+  banner:
+    "linear-gradient(180deg, #B45309 0%, #78350F 100%)",
+  glow: "rgba(255, 217, 120, 0.5)",
 };
+
+const BET_PER_LINE = [1, 2, 5, 10, 25, 50, 100, 250, 500] as const;
+// 10 lines × 500 = 5000 max stake — meets the 5k requirement.
 
 export default function BookOfYahu() {
   return (
@@ -22,10 +29,10 @@ export default function BookOfYahu() {
       <SlotMachine
         gameKey="book-of-yahu"
         title="Book of Yahu"
-        subtitle="Adventure slot · 10 lines · Free Spins with Expanding Symbol"
+        subtitle="ADVENTURE · 5×3 · 10 LINES · FREE SPINS"
         config={bookOfYahuConfig}
         symbolInfo={YAHU_SYMBOL_INFO}
-        betPerLine={[1, 2, 5, 10, 25, 50, 100]}
+        betPerLine={BET_PER_LINE}
         numLines={10}
         theme={theme}
         freeSpinReels={YAHU_FREE_REELS}
@@ -53,9 +60,9 @@ function Paytable() {
   ];
 
   return (
-    <div className="px-4 lg:px-6 py-6">
+    <div className="px-4 lg:px-6 py-6 max-w-4xl mx-auto">
       <h2 className="heading text-lg mb-3">Paytable & Features</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-4xl">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {items.map(({ sym, pays }) => {
           const info = YAHU_SYMBOL_INFO[sym];
           return (
@@ -83,16 +90,17 @@ function Paytable() {
           );
         })}
       </div>
-      <div className="mt-4 max-w-3xl text-sm text-text-secondary leading-relaxed">
+      <div className="mt-4 text-sm text-text-secondary leading-relaxed">
         <p>
-          <strong className="text-white">Free Spins:</strong> 3 or more Books on
-          the reels trigger 10 Free Spins. A random premium symbol is chosen as
-          the <em>Expanding Symbol</em>: when it lands during free spins, it
-          expands to fill the entire reel and pays on every line.
+          <strong className="text-white">Free Spins:</strong> 3+ Books trigger 10
+          Free Spins. A random premium symbol becomes the Expanding Symbol —
+          when it lands during free spins it fills the entire reel and pays on
+          every line.
         </p>
         <p className="mt-2">
-          <strong className="text-white">Retrigger:</strong> 3+ Books during
-          Free Spins award an additional 10 Free Spins.
+          <strong className="text-white">Retrigger:</strong> 3+ Books during Free
+          Spins award an additional 10 Free Spins. Max stake: 500 × 10 lines =
+          5,000 per spin.
         </p>
       </div>
     </div>

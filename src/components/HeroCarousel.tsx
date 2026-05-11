@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 const SLIDES = [
   {
     title: "Welcome to Big Yahu Bet",
-    sub: "10,000 demo coins to start — no real money, all play.",
+    sub: "10,000 demo balance to start — no real money, all play.",
     cta: "Browse casino",
     to: "/casino",
     bg: "linear-gradient(135deg, #2C0F6B 0%, #7B61FF 50%, #FF6BD9 100%)",

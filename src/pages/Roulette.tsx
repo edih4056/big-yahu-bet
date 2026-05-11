@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Coins, RotateCw, Undo2, Trash2, Play } from "lucide-react";
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { playSfx } from "@/lib/sound";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -14,13 +14,15 @@ import {
 } from "@/games/roulette/engine";
 import { Wheel } from "@/games/roulette/Wheel";
 
-const CHIP_VALUES = [1, 5, 25, 100, 500];
+const CHIP_VALUES = [1, 5, 25, 100, 500, 1000, 5000];
 const CHIP_COLORS: Record<number, string> = {
   1: "linear-gradient(135deg, #FFFFFF 0%, #C0C0C0 100%)",
   5: "linear-gradient(135deg, #FF3B6B 0%, #B8284D 100%)",
   25: "linear-gradient(135deg, #00E676 0%, #00A050 100%)",
   100: "linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)",
   500: "linear-gradient(135deg, #C26BFF 0%, #7B61FF 100%)",
+  1000: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
+  5000: "linear-gradient(135deg, #FFE15A 0%, #FFC842 50%, #FF8A00 100%)",
 };
 
 // Numbers in standard roulette grid order (3 rows × 12 cols, 1-36)
@@ -35,6 +37,8 @@ export default function Roulette() {
   const placeBet = useWalletStore((s) => s.bet);
   const winCoins = useWalletStore((s) => s.win);
   const pushHistory = useWalletStore((s) => s.pushHistory);
+  const currency = useWalletStore((s) => s.currency);
+  const fmt = (n: number) => formatMoney(n, currency);
 
   const engineRef = useRef(new RouletteEngine());
   const [, force] = useState(0);
@@ -144,7 +148,7 @@ export default function Roulette() {
         if (net >= totalBetThisSpin * 5) fireConfetti("big");
         else fireConfetti("small");
         setMessage(
-          `Number ${r.number} (${r.color}) — you win ${formatCoins(net)}!`
+          `Number ${r.number} (${r.color}) — you win ${fmt(net)}!`
         );
       } else if (net === 0) {
         setMessage(`Number ${r.number} (${r.color}) — break even.`);
@@ -287,8 +291,8 @@ export default function Roulette() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 max-w-md mx-auto">
-          <Stat label="Balance" value={formatCoins(balance)} />
-          <Stat label="Total bet" value={formatCoins(totalStaked)} />
+          <Stat label="Balance" value={fmt(balance)} />
+          <Stat label="Total bet" value={fmt(totalStaked)} />
           <Stat label="Pos. payout" value={`up to ${maxPayout(bets)}×`} />
         </div>
       </div>

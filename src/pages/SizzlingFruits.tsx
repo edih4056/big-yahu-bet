@@ -1,18 +1,28 @@
-import { SlotMachine } from "@/games/slots/SlotMachine";
+import { SlotMachine, type SlotTheme } from "@/games/slots/SlotMachine";
 import {
   sizzlingFruitsConfig,
   FRUIT_SYMBOL_INFO,
 } from "@/games/slots/sizzlingFruits";
 
-const theme = {
+const theme: SlotTheme = {
   name: "Sizzling Fruits",
-  bg: "linear-gradient(135deg, #4D0F1B 0%, #B22340 50%, #FF8A00 100%)",
-  frame: "#FFD600",
-  symbolBg: "#1a0a0a",
-  glow: "rgba(255, 138, 0, 0.4)",
+  // Iconic painted-red cabinet with subtle deeper shading like the original Sizzling Hot Deluxe.
+  cabinet:
+    "linear-gradient(180deg, #E11D48 0%, #B91C1C 60%, #7F1D1D 100%)",
+  trim: "#FFC842",
+  // Deep violet inner panel behind the reels (matches Novomatic style).
+  panel:
+    "linear-gradient(180deg, #2E1A6B 0%, #3B1F88 60%, #1F124D 100%)",
+  // White reel cells with a faint warm tint.
   cell:
-    "bg-gradient-to-br from-[#FFE15A]/10 to-[#FF3B6B]/10 border border-[#FFD600]/30",
+    "bg-gradient-to-b from-white to-amber-50 border border-rose-200/40",
+  banner:
+    "linear-gradient(180deg, #DC2626 0%, #991B1B 100%)",
+  glow: "rgba(255, 138, 0, 0.45)",
 };
+
+const BET_PER_LINE = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000] as const;
+// 5 lines × 1000 = 5000 max stake — meets the 5k requirement.
 
 export default function SizzlingFruits() {
   return (
@@ -20,10 +30,10 @@ export default function SizzlingFruits() {
       <SlotMachine
         gameKey="sizzling-fruits"
         title="Sizzling Fruits"
-        subtitle="Classic 5×3 fruit slot · 5 lines"
+        subtitle="DELUXE · 5×3 · 5 LINES"
         config={sizzlingFruitsConfig}
         symbolInfo={FRUIT_SYMBOL_INFO}
-        betPerLine={[1, 2, 5, 10, 25, 50, 100]}
+        betPerLine={BET_PER_LINE}
         numLines={5}
         theme={theme}
       />
@@ -48,9 +58,9 @@ function Paytable() {
   ];
 
   return (
-    <div className="px-4 lg:px-6 py-6">
+    <div className="px-4 lg:px-6 py-6 max-w-4xl mx-auto">
       <h2 className="heading text-lg mb-3">Paytable</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-3xl">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {items.map(({ sym, pays }) => {
           const info = FRUIT_SYMBOL_INFO[sym];
           return (
@@ -76,9 +86,9 @@ function Paytable() {
           );
         })}
       </div>
-      <p className="text-xs text-text-secondary mt-3 max-w-3xl">
+      <p className="text-xs text-text-secondary mt-3">
         Multipliers shown apply to the per-line bet. Scatter pays on total bet.
-        5 fixed paylines, left-to-right wins.
+        Max stake: 1,000 × 5 lines = 5,000 per spin.
       </p>
     </div>
   );

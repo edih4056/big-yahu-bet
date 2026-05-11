@@ -67,6 +67,17 @@
   .badge {
     @apply text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md;
   }
+
+  .action-btn {
+    @apply flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl border text-sm transition disabled:opacity-30 disabled:cursor-not-allowed;
+  }
+
+  .cabinet-btn {
+    @apply flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold uppercase tracking-wider transition active:translate-y-px disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .cabinet-btn-sm {
+    @apply flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition active:translate-y-px disabled:opacity-40 disabled:cursor-not-allowed;
+  }
 }
 
 .brand-text {

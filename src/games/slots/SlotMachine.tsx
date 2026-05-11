@@ -1,20 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Coins, Play, Zap, MoveRight } from "lucide-react";
+import {
+  Play,
+  Zap,
+  MoveRight,
+  ChevronUp,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { playSfx } from "@/lib/sound";
 import { fireConfetti } from "@/lib/confetti";
 import { SlotEngine } from "./engine";
 import type { SlotConfig, SpinResult } from "./types";
 
+/* -------------------------------------------------------------------------- */
+/*  Public types                                                              */
+/* -------------------------------------------------------------------------- */
+
 export type SlotTheme = {
   name: string;
-  bg: string; // CSS background for the cabinet
-  frame: string; // border tint
-  symbolBg: string;
+  /** Big cabinet outer frame gradient (mimics the painted slot machine body). */
+  cabinet: string;
+  /** Trim/border color (e.g. red for Sizzling Hot, gold for Book). */
+  trim: string;
+  /** Inner panel behind the reels. */
+  panel: string;
+  /** Single cell background tailwind class. */
+  cell: string;
+  /** Game title banner colors. */
+  banner: string;
+  /** Color for the start button glow. */
   glow: string;
-  cell: string; // tw class for cell bg
 };
 
 type SymbolInfo = {
@@ -34,15 +53,31 @@ type SlotMachineProps = {
   betPerLine: readonly number[];
   numLines: number;
   theme: SlotTheme;
-  // Optional Book-of-Yahu style features
+  /** Optional Book-of-Yahu features */
   freeSpinReels?: string[][];
   pickExpandingSymbol?: () => string;
-  // For the paytable side panel
-  premiumOrder?: string[];
 };
 
 const ROWS = 3;
 const REELS = 5;
+
+/* Five colors used for the line badges on the left/right of the reels */
+const LINE_BADGE_COLORS = [
+  "#FFC842", // yellow (line 1)
+  "#3B82F6", // blue   (line 2)
+  "#F43F5E", // red    (line 3)
+  "#10B981", // green  (line 4)
+  "#EAB308", // amber  (line 5)
+  "#A855F7", // purple (line 6)
+  "#06B6D4", // cyan   (line 7)
+  "#F97316", // orange (line 8)
+  "#EC4899", // pink   (line 9)
+  "#94A3B8", // slate  (line 10)
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Component                                                                 */
+/* -------------------------------------------------------------------------- */
 
 export function SlotMachine(props: SlotMachineProps) {
   const {
@@ -62,6 +97,8 @@ export function SlotMachine(props: SlotMachineProps) {
   const placeBet = useWalletStore((s) => s.bet);
   const winCoins = useWalletStore((s) => s.win);
   const pushHistory = useWalletStore((s) => s.pushHistory);
+  const currency = useWalletStore((s) => s.currency);
+  const fmt = (n: number) => formatMoney(n, currency);
 
   const engineRef = useRef<SlotEngine>(new SlotEngine(config));
   const [betIdx, setBetIdx] = useState(2);
@@ -76,13 +113,14 @@ export function SlotMachine(props: SlotMachineProps) {
   const [expanding, setExpanding] = useState<string | undefined>(undefined);
   const [highlight, setHighlight] = useState<Set<string>>(new Set());
   const [stoppedReels, setStoppedReels] = useState<number>(REELS);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>("PLEASE PLACE YOUR BET");
+  const [fullscreen, setFullscreen] = useState(false);
+  const cabinetRef = useRef<HTMLDivElement>(null);
 
   const linePerBet = betPerLine[betIdx];
   const totalBet = linePerBet * numLines;
 
   const inFreeSpins = freeSpinsLeft > 0;
-
   const canSpin = !spinning && (inFreeSpins || balance >= totalBet);
 
   function placeholderMatrix(reels: string[][]): string[][] {
@@ -98,11 +136,11 @@ export function SlotMachine(props: SlotMachineProps) {
     if (!inFreeSpins) {
       const ok = placeBet(gameKey, totalBet);
       if (!ok) {
-        setMessage("Not enough coins. Reload your wallet.");
+        setMessage("INSUFFICIENT FUNDS");
         return;
       }
     }
-    setMessage(null);
+    setMessage("SPINNING...");
     setLastWin(0);
     setWinLines([]);
     setHighlight(new Set());
@@ -123,7 +161,6 @@ export function SlotMachine(props: SlotMachineProps) {
 
     playSfx("spin");
 
-    // Stagger reel stops for the visual effect
     for (let c = 0; c < REELS; c++) {
       setTimeout(
         () => {
@@ -168,9 +205,15 @@ export function SlotMachine(props: SlotMachineProps) {
       if (won >= totalBet * 10) {
         playSfx("bigWin");
         fireConfetti(won >= totalBet * 30 ? "big" : "small");
+        setMessage(`BIG WIN! ${fmt(won)}`);
       } else {
         playSfx("win");
+        setMessage(`WIN ${fmt(won)}`);
       }
+    } else if (!inFreeSpins) {
+      setMessage("PLEASE PLACE YOUR BET");
+    } else {
+      setMessage("FREE SPIN");
     }
 
     if (!inFreeSpins) {
@@ -189,14 +232,13 @@ export function SlotMachine(props: SlotMachineProps) {
       });
     }
 
-    // Free-spins handling
     if (result.freeSpinsTriggered) {
       const sym = pickExpandingSymbol ? pickExpandingSymbol() : undefined;
       setExpanding(sym);
       setFreeSpinsLeft((n) => n + (result.freeSpinsTriggered ?? 0));
       setMessage(
-        `🎉 ${result.freeSpinsTriggered} Free Spins triggered!${
-          sym ? ` Expanding symbol: ${symbolInfo[sym]?.label ?? sym}` : ""
+        `🎉 ${result.freeSpinsTriggered} FREE SPINS!${
+          sym ? ` EXPANDING: ${symbolInfo[sym]?.label ?? sym}` : ""
         }`
       );
     } else if (inFreeSpins) {
@@ -204,7 +246,6 @@ export function SlotMachine(props: SlotMachineProps) {
     }
   }
 
-  // Auto-play
   useEffect(() => {
     if (auto > 0 && !spinning && canSpin) {
       const id = setTimeout(() => {
@@ -216,7 +257,6 @@ export function SlotMachine(props: SlotMachineProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, spinning]);
 
-  // Continue free spins automatically
   useEffect(() => {
     if (inFreeSpins && !spinning) {
       const id = setTimeout(doSpin, 900);
@@ -225,7 +265,6 @@ export function SlotMachine(props: SlotMachineProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [freeSpinsLeft, spinning]);
 
-  // Spacebar to spin
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.code === "Space" && !spinning && canSpin) {
@@ -238,153 +277,266 @@ export function SlotMachine(props: SlotMachineProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spinning, canSpin]);
 
+  function toggleFullscreen() {
+    if (!cabinetRef.current) return;
+    if (!document.fullscreenElement) {
+      cabinetRef.current.requestFullscreen?.().then(() => setFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen?.().then(() => setFullscreen(false)).catch(() => {});
+    }
+  }
+
+  /* The five line definitions in the engine determine where badges light up */
+  const activeLineRowsLeft = useMemo(
+    () => config.paylines.map((line) => line[0]),
+    [config.paylines]
+  );
+  const activeLineRowsRight = useMemo(
+    () => config.paylines.map((line) => line[REELS - 1]),
+    [config.paylines]
+  );
+  const lineColors = useMemo(
+    () => Array.from({ length: numLines }, (_, i) => LINE_BADGE_COLORS[i % LINE_BADGE_COLORS.length]),
+    [numLines]
+  );
+
   return (
     <div className="px-4 lg:px-6 py-4">
       <div
-        className="rounded-3xl p-4 sm:p-6 lg:p-8 border-2"
+        ref={cabinetRef}
+        className="rounded-[28px] p-4 sm:p-5 lg:p-6 mx-auto relative"
         style={{
-          background: theme.bg,
-          borderColor: theme.frame,
-          boxShadow: `0 0 40px ${theme.glow}`,
+          background: theme.cabinet,
+          maxWidth: 980,
+          boxShadow: `0 0 60px ${theme.glow}, inset 0 0 0 4px ${theme.trim}, inset 0 0 0 8px rgba(0,0,0,0.4)`,
         }}
       >
-        <div className="flex items-baseline gap-3 mb-4">
-          <h1 className="heading text-2xl sm:text-3xl">{title}</h1>
-          <div className="text-text-secondary text-sm">{subtitle}</div>
+        {/* Title banner */}
+        <div className="relative h-14 sm:h-16 flex items-center justify-center mb-3">
+          <div
+            className="absolute inset-x-8 inset-y-0 rounded-2xl"
+            style={{
+              background: theme.banner,
+              boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.35)",
+            }}
+          />
+          <div className="relative text-center">
+            <div
+              className="text-2xl sm:text-3xl font-black tracking-wider"
+              style={{
+                color: "#FFFFFF",
+                textShadow:
+                  "0 0 8px rgba(255,200,66,0.7), 0 2px 0 rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.5)",
+                fontStyle: "italic",
+              }}
+            >
+              {title.toUpperCase()}
+            </div>
+            <div className="text-[10px] text-white/70 -mt-0.5">{subtitle}</div>
+          </div>
           {inFreeSpins && (
-            <div className="ml-auto flex items-center gap-2 px-3 py-1 rounded-full bg-gold/20 text-gold border border-gold/40 text-sm font-semibold">
-              <Zap size={14} /> {freeSpinsLeft} Free Spins
+            <div className="absolute top-1 right-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-gold/90 text-black text-xs font-bold">
+              <Zap size={12} /> {freeSpinsLeft} FS
               {expanding && symbolInfo[expanding] && (
-                <span className="ml-1 text-base">
-                  {symbolInfo[expanding].emoji}
-                </span>
+                <span className="ml-0.5">{symbolInfo[expanding].emoji}</span>
               )}
             </div>
           )}
         </div>
 
-        {/* Reel area */}
-        <div
-          className="rounded-2xl p-3 sm:p-4 mx-auto"
-          style={{
-            background: theme.symbolBg,
-            border: `1px solid ${theme.frame}`,
-          }}
-        >
-          <div className="grid grid-cols-5 gap-2">
-            {matrix.map((reel, c) => (
-              <Reel
-                key={c}
-                reel={reel}
-                isSpinning={spinning && c >= stoppedReels}
-                symbolInfo={symbolInfo}
-                strip={(inFreeSpins && freeSpinReels ? freeSpinReels : config.reels)[c]}
-                cellClass={theme.cell}
-                highlightSet={highlight}
-                reelIndex={c}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Status bar */}
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <Stat label="Balance" value={`${formatCoins(balance)} YAHU`} />
-          <Stat label="Total Bet" value={`${formatCoins(totalBet)}`} />
-          <Stat
-            label="Last Win"
-            value={`${formatCoins(lastWin)}`}
-            highlight={lastWin > 0}
-          />
-        </div>
-
-        {/* Controls */}
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 bg-bg-card rounded-xl p-1">
-            <span className="text-xs text-text-secondary px-2">Per line:</span>
-            {betPerLine.map((b, i) => (
-              <button
-                key={b}
-                onClick={() => setBetIdx(i)}
-                className={`px-2.5 py-1 text-sm font-semibold rounded-lg transition ${
-                  i === betIdx
-                    ? "bg-accent-gradient text-white"
-                    : "text-text-secondary hover:text-white"
-                }`}
-              >
-                {b}
-              </button>
-            ))}
+        {/* Reels area with line badges on both sides */}
+        <div className="flex gap-1.5 sm:gap-2">
+          {/* Left badges column */}
+          <div className="flex flex-col py-1 sm:py-2 justify-around w-7 sm:w-8">
+            {Array.from({ length: numLines }).map((_, i) => {
+              const row = activeLineRowsLeft[i];
+              return (
+                <LineBadge
+                  key={i}
+                  num={i + 1}
+                  color={lineColors[i]}
+                  row={row}
+                  active={winLines.includes(i)}
+                />
+              );
+            })}
           </div>
 
-          <button
-            onClick={() => setBetIdx(betPerLine.length - 1)}
-            className="btn-secondary text-sm"
+          {/* Reels panel */}
+          <div
+            className="flex-1 rounded-2xl p-2 sm:p-3"
+            style={{
+              background: theme.panel,
+              boxShadow:
+                "inset 0 4px 16px rgba(0,0,0,0.55), 0 0 0 2px rgba(0,0,0,0.35)",
+            }}
           >
-            <MoveRight size={14} className="inline mr-1" />
-            Max Bet
-          </button>
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+              {matrix.map((reel, c) => (
+                <Reel
+                  key={c}
+                  reel={reel}
+                  isSpinning={spinning && c >= stoppedReels}
+                  symbolInfo={symbolInfo}
+                  strip={
+                    (inFreeSpins && freeSpinReels ? freeSpinReels : config.reels)[c]
+                  }
+                  cellClass={theme.cell}
+                  highlightSet={highlight}
+                  reelIndex={c}
+                />
+              ))}
+            </div>
+          </div>
 
-          <button
-            onClick={doSpin}
-            disabled={!canSpin}
-            className="ml-auto px-8 py-3 rounded-2xl bg-accent-gradient font-extrabold text-base shadow-glow hover:scale-105 active:scale-95 transition disabled:opacity-40 disabled:hover:scale-100 flex items-center gap-2"
-            aria-label="Spin"
-          >
-            <Play size={18} />
-            SPIN
-          </button>
-
-          <div className="flex items-center gap-1">
-            {[10, 25, 50, 100].map((n) => (
-              <button
-                key={n}
-                onClick={() => setAuto(n)}
-                disabled={spinning || auto > 0 || inFreeSpins}
-                className="btn-secondary text-xs"
-              >
-                Auto {n}
-              </button>
-            ))}
-            {auto > 0 && (
-              <button
-                onClick={() => setAuto(0)}
-                className="btn-secondary text-xs text-rose-300"
-              >
-                Stop ({auto})
-              </button>
-            )}
+          {/* Right badges column */}
+          <div className="flex flex-col py-1 sm:py-2 justify-around w-7 sm:w-8">
+            {Array.from({ length: numLines }).map((_, i) => {
+              const row = activeLineRowsRight[i];
+              return (
+                <LineBadge
+                  key={i}
+                  num={i + 1}
+                  color={lineColors[i]}
+                  row={row}
+                  active={winLines.includes(i)}
+                />
+              );
+            })}
           </div>
         </div>
 
-        {message && (
-          <div className="mt-3 text-center text-sm text-gold font-semibold">
-            {message}
+        {/* Status bar + bottom control deck */}
+        <div className="mt-3 rounded-2xl p-3" style={{ background: theme.banner, boxShadow: "inset 0 2px 8px rgba(0,0,0,0.5)" }}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <Display label="CREDIT" value={fmt(balance)} />
+            <Display label="BET" value={fmt(totalBet)} />
+            <Display label="WIN" value={fmt(lastWin)} highlight={lastWin > 0} />
+            <Display label="LINES" value={String(numLines)} />
           </div>
-        )}
+
+          <div className="rounded-xl bg-black/40 text-center py-2 mb-3 border border-white/10">
+            <span
+              className={`text-sm sm:text-base font-bold tracking-wider ${
+                lastWin > 0
+                  ? "text-win"
+                  : message?.includes("INSUFFICIENT")
+                    ? "text-rose-300"
+                    : "text-gold"
+              }`}
+            >
+              {message}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <BetStepper
+              current={betPerLine[betIdx]}
+              steps={betPerLine}
+              onChange={setBetIdx}
+              disabled={spinning || inFreeSpins}
+            />
+
+            <button
+              onClick={() => setBetIdx(betPerLine.length - 1)}
+              disabled={spinning || inFreeSpins}
+              className="cabinet-btn"
+              style={cabinetBtnStyle(theme.trim, "#FFD600")}
+            >
+              <MoveRight size={14} />
+              MAX&nbsp;BET
+            </button>
+
+            <div className="flex items-center gap-1">
+              {[10, 25, 50, 100].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setAuto(n)}
+                  disabled={spinning || auto > 0 || inFreeSpins}
+                  className="cabinet-btn-sm"
+                  style={cabinetBtnStyle(theme.trim, "#FFD600")}
+                >
+                  AUTO {n}
+                </button>
+              ))}
+              {auto > 0 && (
+                <button onClick={() => setAuto(0)} className="cabinet-btn-sm" style={cabinetBtnStyle("#7f1d1d", "#FCA5A5")}>
+                  STOP {auto}
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={toggleFullscreen}
+              className="cabinet-btn-sm"
+              style={cabinetBtnStyle(theme.trim, "#FFD600")}
+              aria-label="Toggle fullscreen"
+            >
+              {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+
+            <motion.button
+              onClick={doSpin}
+              disabled={!canSpin}
+              whileTap={{ scale: 0.95 }}
+              className="ml-auto relative flex items-center justify-center gap-2 px-7 sm:px-9 py-3.5 rounded-2xl font-black tracking-widest text-base disabled:opacity-40"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, #34D399, #059669 60%, #064E3B)",
+                color: "white",
+                boxShadow:
+                  "0 0 32px rgba(16,185,129,0.6), inset 0 -4px 12px rgba(0,0,0,0.35), inset 0 2px 4px rgba(255,255,255,0.4)",
+                textShadow: "0 1px 0 rgba(0,0,0,0.5)",
+              }}
+              aria-label="Spin"
+            >
+              <motion.div
+                animate={spinning ? { rotate: 360 } : { rotate: 0 }}
+                transition={{ duration: 0.6, repeat: spinning ? Infinity : 0, ease: "linear" }}
+              >
+                <Play size={18} fill="white" />
+              </motion.div>
+              START
+            </motion.button>
+          </div>
+        </div>
 
         {lastWin > 0 && winLines.length > 0 && (
           <AnimatePresence>
             <motion.div
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="mt-3 text-center font-bold"
+              className="mt-2 text-center font-bold text-xs uppercase tracking-wider text-win"
             >
-              <span className="text-win">
-                <Coins size={16} className="inline mr-1.5 mb-1" />
-                +{formatCoins(lastWin)} on{" "}
-                {winLines.length === 1 ? "line" : "lines"}{" "}
-                {winLines.map((n) => n + 1).join(", ")}
-              </span>
+              Win on {winLines.length === 1 ? "line" : "lines"}{" "}
+              {winLines.map((n) => n + 1).join(", ")}
             </motion.div>
           </AnimatePresence>
         )}
+      </div>
+
+      {/* Bottom hint */}
+      <div className="text-center text-[11px] text-text-secondary mt-3">
+        Spacebar to spin · Demo coins only · No real gambling
       </div>
     </div>
   );
 }
 
-function Stat({
+/* -------------------------------------------------------------------------- */
+/*  Sub components                                                             */
+/* -------------------------------------------------------------------------- */
+
+function cabinetBtnStyle(borderHex: string, glowHex: string): React.CSSProperties {
+  return {
+    background: "linear-gradient(180deg, #FBBF24 0%, #F59E0B 60%, #B45309 100%)",
+    color: "#1F1300",
+    border: `2px solid ${borderHex}`,
+    boxShadow: `inset 0 -3px 6px rgba(0,0,0,0.35), inset 0 2px 3px rgba(255,255,255,0.5), 0 0 8px ${glowHex}40`,
+  };
+}
+
+function Display({
   label,
   value,
   highlight,
@@ -394,15 +546,87 @@ function Stat({
   highlight?: boolean;
 }) {
   return (
-    <div className="bg-bg-card rounded-xl px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-text-secondary">
+    <div className="rounded-lg bg-black/55 border border-white/10 px-3 py-1.5">
+      <div className="text-[9px] uppercase tracking-widest text-white/55 font-semibold">
         {label}
       </div>
       <div
-        className={`font-semibold ${highlight ? "text-win" : "text-white"}`}
+        className={`font-mono font-bold text-sm sm:text-base leading-tight ${
+          highlight ? "text-win" : "text-gold"
+        }`}
+        style={{
+          textShadow: highlight
+            ? "0 0 8px rgba(0,230,118,0.7)"
+            : "0 0 6px rgba(255,200,66,0.5)",
+        }}
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function LineBadge({
+  num,
+  color,
+  active,
+}: {
+  num: number;
+  color: string;
+  row: number;
+  active: boolean;
+}) {
+  return (
+    <div
+      className="w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center text-[10px] sm:text-xs font-black"
+      style={{
+        background: color,
+        color: "#000",
+        boxShadow: active
+          ? `0 0 14px ${color}, inset 0 -2px 4px rgba(0,0,0,0.35)`
+          : "inset 0 -2px 4px rgba(0,0,0,0.35)",
+        outline: active ? "2px solid white" : undefined,
+      }}
+    >
+      {num}
+    </div>
+  );
+}
+
+function BetStepper({
+  current,
+  steps,
+  onChange,
+  disabled,
+}: {
+  current: number;
+  steps: readonly number[];
+  onChange: (i: number) => void;
+  disabled?: boolean;
+}) {
+  const idx = steps.indexOf(current);
+  return (
+    <div className="flex items-center gap-1 bg-black/45 rounded-xl p-1 border border-white/10">
+      <button
+        onClick={() => onChange(Math.max(0, idx - 1))}
+        disabled={disabled || idx === 0}
+        className="w-7 h-7 rounded-md bg-bg-elevated hover:bg-accent/20 disabled:opacity-30"
+      >
+        <ChevronDown size={14} className="mx-auto" />
+      </button>
+      <div className="px-2.5 min-w-[80px] text-center">
+        <div className="text-[9px] uppercase tracking-widest text-white/55 font-semibold">
+          BET/LINE
+        </div>
+        <div className="font-mono font-bold text-gold">{current}</div>
+      </div>
+      <button
+        onClick={() => onChange(Math.min(steps.length - 1, idx + 1))}
+        disabled={disabled || idx === steps.length - 1}
+        className="w-7 h-7 rounded-md bg-bg-elevated hover:bg-accent/20 disabled:opacity-30"
+      >
+        <ChevronUp size={14} className="mx-auto" />
+      </button>
     </div>
   );
 }
@@ -432,10 +656,10 @@ function Reel({
 
   if (isSpinning) {
     return (
-      <div className="overflow-hidden h-[300px] sm:h-[330px] rounded-xl bg-black/30">
+      <div className="overflow-hidden h-[210px] sm:h-[260px] lg:h-[300px] rounded-md bg-white/95 border border-black/30">
         <motion.div
-          animate={{ y: [-1200, 0] }}
-          transition={{ duration: 0.6, repeat: Infinity, ease: "linear" }}
+          animate={{ y: [-1300, 0] }}
+          transition={{ duration: 0.55, repeat: Infinity, ease: "linear" }}
         >
           {long.map((s, i) => (
             <Cell key={i} sym={s} info={symbolInfo[s]} cellClass={cellClass} />
@@ -446,7 +670,7 @@ function Reel({
   }
 
   return (
-    <div className="grid grid-rows-3 gap-2">
+    <div className="grid grid-rows-3 gap-1 rounded-md bg-white/95 p-1 border border-black/30">
       {reel.map((s, r) => (
         <Cell
           key={r}
@@ -461,7 +685,7 @@ function Reel({
 }
 
 function Cell({
-  sym,
+  sym: _sym,
   info,
   cellClass,
   highlight,
@@ -475,23 +699,28 @@ function Cell({
     <motion.div
       animate={
         highlight
-          ? { scale: [1, 1.12, 1], filter: ["brightness(1)", "brightness(1.5)", "brightness(1)"] }
+          ? {
+              scale: [1, 1.08, 1],
+              filter: ["brightness(1)", "brightness(1.5)", "brightness(1)"],
+            }
           : { scale: 1 }
       }
       transition={{ duration: 0.6, repeat: highlight ? Infinity : 0 }}
-      className={`relative h-24 sm:h-28 rounded-xl flex items-center justify-center text-4xl sm:text-5xl ${cellClass}`}
+      className={`relative h-[64px] sm:h-[80px] lg:h-[92px] rounded-sm flex items-center justify-center text-3xl sm:text-4xl lg:text-5xl ${cellClass}`}
       style={
         highlight
           ? {
-              boxShadow: `0 0 24px ${info?.color ?? "#FFC842"}, inset 0 0 24px ${info?.color ?? "#FFC842"}40`,
-              borderColor: info?.color ?? "#FFC842",
+              boxShadow: `0 0 18px ${info?.color ?? "#FFC842"}, inset 0 0 18px ${info?.color ?? "#FFC842"}66`,
+              outline: `2px solid ${info?.color ?? "#FFC842"}`,
             }
           : undefined
       }
-      data-sym={sym}
     >
-      <span className="drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-        {info?.emoji ?? sym}
+      <span
+        className="drop-shadow-[0_3px_6px_rgba(0,0,0,0.55)]"
+        style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.6))" }}
+      >
+        {info?.emoji ?? "?"}
       </span>
     </motion.div>
   );

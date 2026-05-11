@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { makeInitialTicker, makeTickerEntry, TickerEntry } from "@/lib/tickerData";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
+import { useWalletStore } from "@/store/walletStore";
 
 export function WinsTicker() {
   const [entries, setEntries] = useState<TickerEntry[]>(() =>
     makeInitialTicker(20)
   );
+  const currency = useWalletStore((s) => s.currency);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -38,9 +40,9 @@ export function WinsTicker() {
                 <span className="text-text-secondary">{e.user}</span>
                 <span className="text-text-secondary/60">won</span>
                 <span className="font-bold text-win">
-                  {formatCoins(e.amount)}
+                  {formatMoney(e.amount, currency)}
                 </span>
-                <span className="text-text-secondary/60">YAHU on</span>
+                <span className="text-text-secondary/60">on</span>
                 <span className="font-medium">{e.game}</span>
               </div>
             ))}

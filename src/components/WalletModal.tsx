@@ -1,6 +1,6 @@
 import { Modal } from "./Modal";
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { ArrowDown, ArrowUp, RotateCw, Coins } from "lucide-react";
 
 type Props = {
@@ -12,6 +12,7 @@ export function WalletModal({ open, onClose }: Props) {
   const balance = useWalletStore((s) => s.balance);
   const tx = useWalletStore((s) => s.transactions);
   const reload = useWalletStore((s) => s.reload);
+  const currency = useWalletStore((s) => s.currency);
 
   return (
     <Modal open={open} onClose={onClose} title="Wallet">
@@ -22,18 +23,21 @@ export function WalletModal({ open, onClose }: Props) {
         <div className="flex items-baseline gap-2 mt-1">
           <Coins size={22} className="text-gold" />
           <div className="text-3xl font-extrabold gold-text">
-            {formatCoins(balance)}
+            {formatMoney(balance, currency)}
           </div>
-          <div className="text-sm text-text-secondary">YAHU</div>
         </div>
         <div className="text-[11px] text-text-secondary mt-2">
-          Demo coins only — no real money is involved.
+          Demo coins only — no real money is involved. Currency is a display
+          label only; switch it any time in Settings.
         </div>
       </div>
 
       <div className="flex gap-2 mb-4">
-        <button onClick={reload} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          <RotateCw size={16} /> Reload to 10,000
+        <button
+          onClick={reload}
+          className="btn-primary flex-1 flex items-center justify-center gap-2"
+        >
+          <RotateCw size={16} /> Reload demo coins
         </button>
       </div>
 
@@ -64,7 +68,7 @@ export function WalletModal({ open, onClose }: Props) {
               className={`font-semibold ${t.amount >= 0 ? "text-win" : "text-rose-300"}`}
             >
               {t.amount >= 0 ? "+" : ""}
-              {formatCoins(t.amount)}
+              {formatMoney(t.amount, currency)}
             </div>
           </div>
         ))}

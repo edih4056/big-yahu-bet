@@ -1,5 +1,5 @@
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { Coins, History, Trophy } from "lucide-react";
 
 export default function Profile() {
@@ -8,6 +8,8 @@ export default function Profile() {
   const history = useWalletStore((s) => s.history);
   const setUsername = useWalletStore((s) => s.setUsername);
   const reload = useWalletStore((s) => s.reload);
+  const currency = useWalletStore((s) => s.currency);
+  const fmt = (n: number) => formatMoney(n, currency);
 
   const totalNet = history.reduce((s, e) => s + e.net, 0);
   const wins = history.filter((e) => e.net > 0).length;
@@ -34,7 +36,7 @@ export default function Profile() {
             <Coins size={14} className="text-gold" /> Balance
           </div>
           <div className="text-3xl font-extrabold gold-text">
-            {formatCoins(balance)}
+            {fmt(balance)}
           </div>
           <button onClick={reload} className="btn-secondary mt-3 text-sm">
             Reload to 10,000
@@ -65,7 +67,7 @@ export default function Profile() {
                 }`}
               >
                 {totalNet >= 0 ? "+" : ""}
-                {formatCoins(totalNet)}
+                {fmt(totalNet)}
               </span>
             </div>
           </div>
@@ -104,10 +106,10 @@ export default function Profile() {
                     </td>
                     <td className="py-2 pr-3">{e.game}</td>
                     <td className="py-2 pr-3 text-right">
-                      {formatCoins(e.bet)}
+                      {fmt(e.bet)}
                     </td>
                     <td className="py-2 pr-3 text-right">
-                      {formatCoins(e.result)}
+                      {fmt(e.result)}
                     </td>
                     <td
                       className={`py-2 text-right font-semibold ${
@@ -115,7 +117,7 @@ export default function Profile() {
                       }`}
                     >
                       {e.net >= 0 ? "+" : ""}
-                      {formatCoins(e.net)}
+                      {fmt(e.net)}
                     </td>
                   </tr>
                 ))}

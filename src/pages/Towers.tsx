@@ -11,7 +11,7 @@ import {
   Skull,
 } from "lucide-react";
 import { useWalletStore } from "@/store/walletStore";
-import { formatCoins } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { playSfx } from "@/lib/sound";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -28,13 +28,16 @@ const DIFF_LABELS: Record<Difficulty, { label: string; sub: string; color: strin
   extreme: { label: "Extreme", sub: "1 safe / 2 bombs", color: "#FF3B6B" },
 };
 
-const BET_PRESETS = [10, 25, 100, 500, 1000];
+const BET_PRESETS = [10, 25, 100, 500, 1000, 2500, 5000];
+const MAX_BET = 5000;
 
 export default function Towers() {
   const balance = useWalletStore((s) => s.balance);
   const placeBet = useWalletStore((s) => s.bet);
   const winCoins = useWalletStore((s) => s.win);
   const pushHistory = useWalletStore((s) => s.pushHistory);
+  const currency = useWalletStore((s) => s.currency);
+  const fmt = (n: number) => formatMoney(n, currency);
 
   const [bet, setBet] = useState(25);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
@@ -73,7 +76,7 @@ export default function Towers() {
     const r = eng.pick(idx);
     if (r.hit === "bomb") {
       eng.revealAll();
-      setMessage(`💥 Bomb! You lose ${formatCoins(bet)} YAHU.`);
+      setMessage(`💥 Bomb! You lose ${fmt(bet)}.`);
       playSfx("lose");
       pushHistory({
         game: "Towers",
@@ -89,7 +92,7 @@ export default function Towers() {
         const payout = eng.potentialPayout();
         winCoins("towers", payout);
         setMessage(
-          `🏆 Tower conquered! You win ${formatCoins(payout - bet)} YAHU.`
+          `🏆 Tower conquered! You win ${fmt(payout - bet)}.`
         );
         playSfx("bigWin");
         fireConfetti("big");
@@ -101,7 +104,7 @@ export default function Towers() {
         });
       } else {
         setMessage(
-          `Safe! Cash out ${formatCoins(eng.potentialPayout())} or climb higher.`
+          `Safe! Cash out ${fmt(eng.potentialPayout())} or climb higher.`
         );
       }
     }
@@ -112,7 +115,7 @@ export default function Towers() {
     if (!eng || eng.status !== "playing" || eng.level === 0) return;
     const payout = eng.cashOut();
     winCoins("towers", payout);
-    setMessage(`💰 Cashed out for ${formatCoins(payout)} YAHU.`);
+    setMessage(`💰 Cashed out for ${fmt(payout)}.`);
     playSfx("win");
     if (payout >= bet * 3) fireConfetti("small");
     pushHistory({
@@ -213,13 +216,25 @@ export default function Towers() {
             />
 
             <div className="card-base p-3">
-              <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">
-                Bet (YAHU)
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-text-secondary">
+                  Bet
+                </span>
+                <span className="text-[10px] text-text-secondary">
+                  {fmt(bet)}
+                </span>
               </div>
               <input
                 type="number"
                 value={bet}
-                onChange={(e) => setBet(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                onChange={(e) =>
+                  setBet(
+                    Math.min(
+                      MAX_BET,
+                      Math.max(1, Math.floor(Number(e.target.value) || 1))
+                    )
+                  )
+                }
                 disabled={!!inGame}
                 className="w-full bg-bg-elevated rounded-lg px-3 py-2 outline-none border border-white/5 focus:border-accent/50 disabled:opacity-50"
               />
@@ -231,7 +246,7 @@ export default function Towers() {
                     disabled={!!inGame}
                     className="px-2 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
                   >
-                    {p}
+                    {p >= 1000 ? `${p / 1000}K` : p}
                   </button>
                 ))}
                 <button
@@ -242,17 +257,29 @@ export default function Towers() {
                   ½
                 </button>
                 <button
-                  onClick={() => setBet((b) => Math.min(balance, b * 2))}
+                  onClick={() =>
+                    setBet((b) => Math.min(MAX_BET, Math.min(balance, b * 2)))
+                  }
                   disabled={!!inGame}
                   className="px-2 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
                 >
                   2×
                 </button>
+                <button
+                  onClick={() => setBet(Math.min(MAX_BET, balance))}
+                  disabled={!!inGame}
+                  className="px-2 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
+                >
+                  Max
+                </button>
+              </div>
+              <div className="text-[10px] text-text-secondary mt-1">
+                Max bet: {fmt(MAX_BET)}
               </div>
             </div>
 
             <div className="card-base p-3 space-y-1.5">
-              <Stat label="Balance" value={`${formatCoins(balance)}`} />
+              <Stat label="Balance" value={`${fmt(balance)}`} />
               {eng && (
                 <>
                   <Stat
@@ -262,7 +289,7 @@ export default function Towers() {
                   />
                   <Stat
                     label="Potential payout"
-                    value={`${formatCoins(eng.potentialPayout())}`}
+                    value={`${fmt(eng.potentialPayout())}`}
                   />
                   <Stat
                     label="Next level ×"
@@ -292,7 +319,7 @@ export default function Towers() {
                 onClick={doCashOut}
                 className="px-5 py-3 rounded-2xl bg-gold-gradient text-black font-extrabold shadow-glow-gold hover:scale-[1.03] active:scale-95 transition flex items-center justify-center gap-2"
               >
-                <PiggyBank size={18} /> Cash out {formatCoins(eng.potentialPayout())}
+                <PiggyBank size={18} /> Cash out {fmt(eng.potentialPayout())}
               </button>
             )}
 

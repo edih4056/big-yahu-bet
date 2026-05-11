@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import Home from "@/pages/Home";
-import { Casino, Slots, TableGames } from "@/pages/CategoryPage";
+import { Casino, Slots, TableGames, Games } from "@/pages/CategoryPage";
 import Promotions from "@/pages/Promotions";
 import Profile from "@/pages/Profile";
 import SizzlingFruits from "@/pages/SizzlingFruits";
@@ -19,6 +19,7 @@ export default function App() {
         <Route path="/casino" element={<Casino />} />
         <Route path="/slots" element={<Slots />} />
         <Route path="/table-games" element={<TableGames />} />
+        <Route path="/games" element={<Games />} />
         <Route path="/promotions" element={<Promotions />} />
         <Route path="/profile" element={<Profile />} />
         <Route

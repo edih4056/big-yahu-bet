@@ -40,3 +40,11 @@ export function TableGames() {
     <CategoryPage title="Table Games" filter={(g) => g.category === "table"} />
   );
 }
+export function Games() {
+  return (
+    <CategoryPage
+      title="Games"
+      filter={(g) => g.category === "games"}
+    />
+  );
+}

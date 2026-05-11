@@ -2,7 +2,7 @@ export type GameDef = {
   slug: string;
   title: string;
   provider: string;
-  category: "slots" | "table" | "live" | "specials";
+  category: "slots" | "table" | "live" | "games";
   badge?: "HOT" | "NEW" | "POPULAR";
   available: boolean;
   cover: {
@@ -69,7 +69,7 @@ export const GAMES: GameDef[] = [
     slug: "towers",
     title: "Towers",
     provider: "YahuPlay",
-    category: "specials",
+    category: "games",
     badge: "NEW",
     available: true,
     cover: {

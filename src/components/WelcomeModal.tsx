@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { useWalletStore } from "@/store/walletStore";
+import { CURRENCY_LIST } from "@/lib/currency";
+import { formatMoney } from "@/lib/format";
 import { Coins, ShieldAlert } from "lucide-react";
 
 export function WelcomeModal() {
@@ -8,6 +10,8 @@ export function WelcomeModal() {
   const mark = useWalletStore((s) => s.markWelcomeSeen);
   const setUsername = useWalletStore((s) => s.setUsername);
   const username = useWalletStore((s) => s.username);
+  const currency = useWalletStore((s) => s.currency);
+  const setCurrency = useWalletStore((s) => s.setCurrency);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(username);
 
@@ -34,8 +38,11 @@ export function WelcomeModal() {
       <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-bg-elevated">
         <Coins className="text-gold shrink-0" size={22} />
         <p className="text-sm">
-          You start with <span className="gold-text font-bold">10,000 YAHU</span>{" "}
-          demo coins. Reload anytime from your wallet.
+          You start with{" "}
+          <span className="gold-text font-bold">
+            {formatMoney(10000, currency)}
+          </span>{" "}
+          in demo balance. Reload anytime from your wallet.
         </p>
       </div>
 
@@ -49,6 +56,26 @@ export function WelcomeModal() {
         placeholder="Your display name"
         maxLength={20}
       />
+
+      <label className="block text-xs uppercase tracking-wider text-text-secondary mb-1.5 mt-3">
+        Display currency
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {CURRENCY_LIST.map((c) => (
+          <button
+            key={c.code}
+            onClick={() => setCurrency(c.code)}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition ${
+              c.code === currency
+                ? "border-accent bg-accent/20"
+                : "border-white/10 bg-bg-card hover:bg-bg-elevated"
+            }`}
+          >
+            <span className="mr-1">{c.symbol}</span>
+            {c.code}
+          </button>
+        ))}
+      </div>
 
       <button onClick={close} className="btn-primary w-full mt-4">
         Enter the casino

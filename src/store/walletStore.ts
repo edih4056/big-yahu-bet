@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { uid } from "@/lib/format";
+import type { CurrencyCode } from "@/lib/currency";
 
 export type Transaction = {
   id: string;
@@ -27,6 +28,7 @@ type WalletState = {
   username: string;
   soundEnabled: boolean;
   hasSeenWelcome: boolean;
+  currency: CurrencyCode;
   bet: (game: string, amount: number) => boolean;
   win: (game: string, amount: number) => void;
   pushHistory: (entry: Omit<GameHistoryEntry, "id" | "ts">) => void;
@@ -34,6 +36,7 @@ type WalletState = {
   setUsername: (name: string) => void;
   toggleSound: () => void;
   markWelcomeSeen: () => void;
+  setCurrency: (c: CurrencyCode) => void;
 };
 
 const STARTING_BALANCE = 10_000;
@@ -49,6 +52,7 @@ export const useWalletStore = create<WalletState>()(
       username: "Guest",
       soundEnabled: true,
       hasSeenWelcome: false,
+      currency: "YAHU",
 
       bet: (game, amount) => {
         if (amount <= 0) return false;
@@ -117,10 +121,11 @@ export const useWalletStore = create<WalletState>()(
       setUsername: (name) => set({ username: name.trim() || "Guest" }),
       toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
       markWelcomeSeen: () => set({ hasSeenWelcome: true }),
+      setCurrency: (c) => set({ currency: c }),
     }),
     {
       name: "byb-wallet",
-      version: 1,
+      version: 2,
     }
   )
 );
