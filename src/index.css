@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    background: #0f0e1a;
+    color: #ffffff;
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(123, 97, 255, 0.18) 0%, transparent 35%),
+      radial-gradient(circle at 80% 0%, rgba(194, 107, 255, 0.12) 0%, transparent 40%),
+      linear-gradient(180deg, #0f0e1a 0%, #0a0915 100%);
+    background-attachment: fixed;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f0e1a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2750;
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3770;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(28, 26, 54, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(123, 97, 255, 0.15);
+  }
+
+  .btn-primary {
+    @apply bg-accent-gradient text-white font-semibold px-5 py-2.5 rounded-2xl shadow-glow-sm hover:shadow-glow transition-all hover:scale-[1.03] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-elevated text-white font-medium px-5 py-2.5 rounded-2xl hover:bg-bg-card transition-all border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply text-text-secondary hover:text-text-primary transition-colors px-3 py-2 rounded-xl hover:bg-white/5;
+  }
+
+  .card-base {
+    @apply bg-bg-card rounded-2xl border border-white/5 shadow-lg;
+  }
+
+  .heading {
+    @apply font-bold tracking-tight;
+  }
+
+  .badge {
+    @apply text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md;
+  }
+}
+
+.brand-text {
+  background: linear-gradient(135deg, #ffffff 0%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, #7b61ff 0%, #c26bff 50%, #ff8ad4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-text {
+  background: linear-gradient(135deg, #ffe27a 0%, #ffc842 50%, #ff8a00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.win-glow {
+  filter: drop-shadow(0 0 8px rgba(0, 230, 118, 0.6));
+}
+
+@keyframes reel-spin {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2400px); }
+}
+
+@keyframes wheel-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(1440deg); }
+}
+
+@keyframes ball-orbit {
+  0% { transform: rotate(0deg) translateX(140px) rotate(0deg); }
+  100% { transform: rotate(-1440deg) translateX(140px) rotate(1440deg); }
+}
