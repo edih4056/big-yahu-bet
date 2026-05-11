@@ -33,6 +33,8 @@ type WalletState = {
   win: (game: string, amount: number) => void;
   pushHistory: (entry: Omit<GameHistoryEntry, "id" | "ts">) => void;
   reload: () => void;
+  setBalance: (amount: number) => void;
+  addBalance: (amount: number) => void;
   setUsername: (name: string) => void;
   toggleSound: () => void;
   markWelcomeSeen: () => void;
@@ -110,6 +112,42 @@ export const useWalletStore = create<WalletState>()(
           kind: "reload",
           game: "wallet",
           amount: STARTING_BALANCE - get().balance,
+          balanceAfter,
+        };
+        set((s) => ({
+          balance: balanceAfter,
+          transactions: [tx, ...s.transactions].slice(0, MAX_TX),
+        }));
+      },
+
+      setBalance: (amount) => {
+        const target = Math.max(0, Math.floor(amount));
+        const diff = target - get().balance;
+        if (diff === 0) return;
+        const tx: Transaction = {
+          id: uid(),
+          ts: Date.now(),
+          kind: "adjust",
+          game: "wallet",
+          amount: diff,
+          balanceAfter: target,
+        };
+        set((s) => ({
+          balance: target,
+          transactions: [tx, ...s.transactions].slice(0, MAX_TX),
+        }));
+      },
+
+      addBalance: (amount) => {
+        const inc = Math.floor(amount);
+        if (inc === 0) return;
+        const balanceAfter = Math.max(0, get().balance + inc);
+        const tx: Transaction = {
+          id: uid(),
+          ts: Date.now(),
+          kind: "adjust",
+          game: "wallet",
+          amount: inc,
           balanceAfter,
         };
         set((s) => ({

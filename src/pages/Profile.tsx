@@ -38,9 +38,26 @@ export default function Profile() {
           <div className="text-3xl font-extrabold gold-text">
             {fmt(balance)}
           </div>
-          <button onClick={reload} className="btn-secondary mt-3 text-sm">
-            Reload to 10,000
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button onClick={reload} className="btn-secondary text-sm flex-1">
+              Reset to 10,000
+            </button>
+            <button
+              onClick={() => {
+                const v = window.prompt(
+                  "Enter custom balance (demo coins):",
+                  String(balance)
+                );
+                if (v == null) return;
+                const num = Math.max(0, Math.floor(Number(v) || 0));
+                useWalletStore.getState().setBalance(num);
+              }}
+              className="btn-primary text-sm"
+              title="Set a custom balance"
+            >
+              Set custom
+            </button>
+          </div>
         </div>
         <div className="card-base p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-text-secondary mb-2">
