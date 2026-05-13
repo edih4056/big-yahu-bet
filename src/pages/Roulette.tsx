@@ -12,7 +12,7 @@ import {
   type Bet,
   type BetKind,
 } from "@/games/roulette/engine";
-import { Wheel } from "@/games/roulette/Wheel";
+import { Wheel, ROULETTE_SPIN_MS } from "@/games/roulette/Wheel";
 
 const CHIP_VALUES = [1, 5, 25, 100, 500, 1000, 5000];
 const CHIP_COLORS: Record<number, string> = {
@@ -122,20 +122,24 @@ export default function Roulette() {
       return;
     }
     lastBetsRef.current = engineRef.current.bets.map((b) => ({ ...b }));
+
+    // Compute the result up front, but only feed it to the wheel and the
+    // wallet. We hide the win/lose message until the wheel animation lands.
+    const r = engineRef.current.spin();
+    const totalBetThisSpin = engineRef.current.totalStaked();
+    const totalReturn = r.totalWin;
+    const net = totalReturn - totalBetThisSpin;
+
     setSpinning(true);
-    setMessage("Spinning...");
+    setResult(r.number);            // triggers wheel rotation
+    setSpinId((n) => n + 1);
+    setMessage("Spinning...");      // generic status while the wheel turns
     playSfx("wheel");
 
-    const r = engineRef.current.spin();
-    setResult(r.number);
-    setSpinId((n) => n + 1);
-
+    // Wait for the wheel to actually land before revealing the result.
     setTimeout(() => {
       setSpinning(false);
       setHistory((h) => [r.number, ...h].slice(0, 100));
-      const totalBetThisSpin = engineRef.current.totalStaked();
-      const totalReturn = r.totalWin;
-      const net = totalReturn - totalBetThisSpin;
       if (totalReturn > 0) winCoins("roulette", totalReturn);
       pushHistory({
         game: "Roulette",
@@ -158,7 +162,7 @@ export default function Roulette() {
       }
       engineRef.current.clearBets();
       refresh();
-    }, 4500);
+    }, ROULETTE_SPIN_MS + 200);
   }
 
   const stats = useMemo(() => {
@@ -223,7 +227,7 @@ export default function Roulette() {
               </div>
               <div
                 className={`text-2xl font-extrabold mt-0.5 ${
-                  result === null
+                  result === null || spinning
                     ? "text-text-secondary"
                     : colorOf(result) === "red"
                       ? "text-rose-300"
@@ -232,7 +236,7 @@ export default function Roulette() {
                         : "text-white"
                 }`}
               >
-                {result ?? "—"}
+                {spinning || result === null ? "—" : result}
               </div>
             </div>
           </div>

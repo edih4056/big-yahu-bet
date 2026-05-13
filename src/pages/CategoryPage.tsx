@@ -41,10 +41,33 @@ export function TableGames() {
   );
 }
 export function Games() {
+  // The "Games" category contains all Originals + Towers etc.
   return (
     <CategoryPage
       title="Games"
-      filter={(g) => g.category === "games"}
+      filter={(g) => g.category === "games" || g.category === "originals"}
     />
+  );
+}
+export function Originals() {
+  return (
+    <CategoryPage
+      title="Yahu Originals"
+      filter={(g) => g.category === "originals"}
+    />
+  );
+}
+export function NewReleases() {
+  // Mirrors "Neuerscheinungen" — show unavailable mocks as a teaser feed
+  return (
+    <CategoryPage
+      title="Neuerscheinungen"
+      filter={(g) => g.badge === "NEW" || (!g.available && g.category !== "live")}
+    />
+  );
+}
+export function Live() {
+  return (
+    <CategoryPage title="Live Casino" filter={(g) => g.category === "live"} />
   );
 }

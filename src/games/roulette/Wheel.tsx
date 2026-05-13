@@ -5,28 +5,37 @@ import { WHEEL_ORDER, colorOf } from "./engine";
 const SIZE = 280;
 const POCKET_COUNT = WHEEL_ORDER.length; // 37
 const DEG_PER = 360 / POCKET_COUNT;
+const SPIN_DURATION_S = 4;
 
 export function Wheel({
-  spinning,
   result,
   spinId,
 }: {
-  spinning: boolean;
+  /** spinning is no longer consumed — the wheel reacts purely to spinId changes */
+  spinning?: boolean;
   result: number | null;
   spinId: number;
 }) {
   const [rotation, setRotation] = useState(0);
 
+  // Animate to the target pocket each time spinId changes.
+  // The animation always lasts SPIN_DURATION_S, regardless of the parent's
+  // spinning flag, so the wheel finishes turning before the result message
+  // is revealed.
   useEffect(() => {
-    if (!spinning && result !== null) {
-      const idx = WHEEL_ORDER.indexOf(result);
-      // pocket idx 0 (the "0") should land at top when rotation is 0.
-      // We rotate the wheel by additional 4 full turns + offset.
+    if (spinId === 0 || result === null) return;
+    const idx = WHEEL_ORDER.indexOf(result);
+    if (idx < 0) return;
+    // pocket sits at the top (rotation = 0). To land it at the pointer we
+    // need to rotate by -(idx * degPer) - degPer/2, accumulating multiple
+    // full turns on top of the previous rotation so it always spins forward.
+    setRotation((prev) => {
+      const fullTurns = Math.floor(prev / 360) + 5;
       const target = -(idx * DEG_PER) - DEG_PER / 2;
-      const final = 360 * 5 + target;
-      setRotation(final);
-    }
-  }, [spinning, result, spinId]);
+      // Use a positive accumulating rotation; framer-motion's rotate is unitless degrees.
+      return fullTurns * 360 + target;
+    });
+  }, [spinId, result]);
 
   return (
     <div
@@ -50,8 +59,8 @@ export function Wheel({
       <motion.div
         animate={{ rotate: rotation }}
         transition={{
-          duration: spinning ? 1 : 4,
-          ease: spinning ? "linear" : [0.2, 0.6, 0.4, 1],
+          duration: SPIN_DURATION_S,
+          ease: [0.18, 0.7, 0.3, 1],
         }}
         className="relative w-full h-full rounded-full border-4 border-gold/40"
         style={{
@@ -125,3 +134,5 @@ export function Wheel({
     </div>
   );
 }
+
+export const ROULETTE_SPIN_MS = SPIN_DURATION_S * 1000;
