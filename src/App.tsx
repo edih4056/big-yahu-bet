@@ -20,6 +20,10 @@ import Towers from "@/pages/Towers";
 import Mines from "@/pages/Mines";
 import Limbo from "@/pages/Limbo";
 import Dice from "@/pages/Dice";
+import Crash from "@/pages/Crash";
+import CoinFlip from "@/pages/CoinFlip";
+import Wheel from "@/pages/Wheel";
+import Hilo from "@/pages/Hilo";
 import { StubPage, NotFound } from "@/pages/Stub";
 
 export default function App() {
@@ -63,6 +67,10 @@ export default function App() {
         <Route path="/play/mines" element={<Mines />} />
         <Route path="/play/limbo" element={<Limbo />} />
         <Route path="/play/dice" element={<Dice />} />
+        <Route path="/play/crash" element={<Crash />} />
+        <Route path="/play/coin-flip" element={<CoinFlip />} />
+        <Route path="/play/wheel" element={<Wheel />} />
+        <Route path="/play/hilo" element={<Hilo />} />
         {/* Coming-soon mocked games redirect back to casino */}
         <Route path="/play/" element={<Navigate to="/casino" replace />} />
         <Route path="/play/cs-:slug" element={<Navigate to="/casino" replace />} />
