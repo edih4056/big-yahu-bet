@@ -31,8 +31,12 @@ export function Wheel({
     // full turns on top of the previous rotation so it always spins forward.
     setRotation((prev) => {
       const fullTurns = Math.floor(prev / 360) + 5;
-      const target = -(idx * DEG_PER) - DEG_PER / 2;
-      // Use a positive accumulating rotation; framer-motion's rotate is unitless degrees.
+      // Each slice in the SVG is drawn so that slice i is centered at
+      // angle `i * DEG_PER - 90` (top = -90). To bring slice idx to the
+      // top pointer, the wheel needs to rotate by exactly `-idx * DEG_PER`.
+      // (No extra half-slice offset — that would land the pointer on the
+      // slice boundary between idx and idx+1.)
+      const target = -(idx * DEG_PER);
       return fullTurns * 360 + target;
     });
   }, [spinId, result]);
