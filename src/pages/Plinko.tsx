@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play } from "lucide-react";
+import { Play, Zap } from "lucide-react";
 import { useWalletStore } from "@/store/walletStore";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, uid } from "@/lib/format";
 import { playSfx } from "@/lib/sound";
 import { fireConfetti } from "@/lib/confetti";
 import {
@@ -24,9 +24,29 @@ const RISK_INFO: Record<Risk, { label: string; color: string }> = {
 };
 
 const BOARD_WIDTH = 480;
-const BOARD_HEIGHT = 420;
+const BOARD_HEIGHT = 460;
 const PEG_RADIUS = 3.5;
 const BALL_RADIUS = 7;
+const ROW_DURATION_MS = 95; // time per row — slightly slower for cleaner feel
+const SETTLE_PAUSE_MS = 220;
+
+// Tunable bounce on each peg (in px)
+const BOUNCE_AMPLITUDE = 5;
+
+type ActiveBall = {
+  id: string;
+  /** Geometry: (x, y) at the moment the ball passes between two pegs in each row */
+  waypoints: { x: number; y: number }[];
+  /** Cached at drop time — used when settling */
+  bet: number;
+  bucket: number;
+  multiplier: number;
+  payout: number;
+  /** Wall-clock the animation began (ms) */
+  startedAt: number;
+};
+
+type BucketHighlight = { bucket: number; key: string };
 
 export default function Plinko() {
   const balance = useWalletStore((s) => s.balance);
@@ -38,93 +58,117 @@ export default function Plinko() {
 
   const [bet, setBet] = useState(100);
   const [risk, setRisk] = useState<Risk>("medium");
-  const [busy, setBusy] = useState(false);
-  /** Path of ball as (x, y) coordinates so motion.div can animate through them */
-  const [ballSteps, setBallSteps] = useState<{ x: number; y: number }[] | null>(
-    null
-  );
-  const [lastResult, setLastResult] = useState<{
-    bucket: number;
-    mult: number;
-    win: boolean;
-  } | null>(null);
+  /** Balls currently in flight on the board */
+  const [active, setActive] = useState<ActiveBall[]>([]);
+  /** Buckets currently highlighted (last few landings) */
+  const [highlights, setHighlights] = useState<BucketHighlight[]>([]);
+  /** Last 20 multipliers, for the side panel */
   const [history, setHistory] = useState<number[]>([]);
+  /** Optional auto-drop run (count remaining) */
+  const [autoRemaining, setAutoRemaining] = useState(0);
+
+  const balanceRef = useRef(balance);
+  balanceRef.current = balance;
 
   const layout = plinkoLayout(risk);
   const rtp = plinkoRtp(risk);
 
-  // Geometry. Peg rows: row r has r+2 pegs (start with 2 at the top? Actually
-  // Plinko traditionally has r+1 pegs in row r, with rows 0..ROWS-1, so the
-  // last row has ROWS pegs and the buckets row has ROWS+1 buckets).
-  // We use: row r has (r + 2) pegs.
-  const yStep = (BOARD_HEIGHT - 60) / (PLINKO_ROWS + 1);
+  // Geometry helpers
+  const yStep = (BOARD_HEIGHT - 70) / (PLINKO_ROWS + 1);
   const xStep = (BOARD_WIDTH - 40) / (PLINKO_ROWS + 1);
   const startX = BOARD_WIDTH / 2;
-  const startY = 16;
+  const startY = 18;
 
   function pegX(row: number, idx: number) {
     const pegsInRow = row + 2;
     const totalWidth = (pegsInRow - 1) * xStep;
-    const x = startX - totalWidth / 2 + idx * xStep;
-    return x;
+    return startX - totalWidth / 2 + idx * xStep;
   }
   function pegY(row: number) {
     return startY + (row + 1) * yStep;
   }
 
-  function play() {
-    if (busy || balance < bet) return;
-    const ok = placeBet("plinko", bet);
-    if (!ok) return;
-    setBusy(true);
-    setLastResult(null);
-
-    const result = dropBall(bet, risk);
-    playSfx("chip");
-
-    // Compute (x, y) waypoints. After row r the ball has taken r+1 deflections
-    // (one per row entered). At rows from top to bottom, the ball is between
-    // pegs. We pick a "between pegs" position based on the cumulative right-count.
-    const steps: { x: number; y: number }[] = [{ x: startX, y: startY }];
+  function computeWaypoints(path: (-1 | 1)[]) {
+    const wp: { x: number; y: number }[] = [{ x: startX, y: startY }];
     let rights = 0;
     for (let r = 0; r < PLINKO_ROWS; r++) {
-      if (result.path[r] === 1) rights++;
-      // The pegs in row r are at indices 0..(r+1). After r+1 deflections, the
-      // ball sits between two adjacent pegs in row r+1 (or in the bucket lane
-      // for the last row).
+      if (path[r] === 1) rights++;
       const x = pegX(r + 1, rights);
       const y = pegY(r) + yStep / 2;
-      steps.push({ x, y });
+      wp.push({ x, y });
     }
-    setBallSteps(steps);
+    // Final point: drop straight down into the bucket row
+    const lastY = BOARD_HEIGHT - 30;
+    wp.push({ x: wp[wp.length - 1].x, y: lastY });
+    return wp;
+  }
 
-    // Animation duration scales with rows (about 80ms per row).
-    const dur = 80 * (steps.length - 1);
+  function dropOne() {
+    // Use ref to avoid stale closure in auto mode
+    if (balanceRef.current < bet) return false;
+    const ok = placeBet("plinko", bet);
+    if (!ok) return false;
+    const result = dropBall(bet, risk);
+    const wp = computeWaypoints(result.path);
+
+    const ball: ActiveBall = {
+      id: uid(),
+      waypoints: wp,
+      bet,
+      bucket: result.bucket,
+      multiplier: result.multiplier,
+      payout: result.payout,
+      startedAt: performance.now(),
+    };
+    setActive((cur) => [...cur, ball]);
+    playSfx("click");
+
+    // Schedule settlement when this ball completes its journey
+    const totalDur = ROW_DURATION_MS * (wp.length - 1) + SETTLE_PAUSE_MS;
+    setTimeout(() => onSettle(ball), totalDur);
+    return true;
+  }
+
+  function onSettle(ball: ActiveBall) {
+    setActive((cur) => cur.filter((b) => b.id !== ball.id));
+    setHistory((h) => [ball.multiplier, ...h].slice(0, 30));
+    setHighlights((cur) => [...cur, { bucket: ball.bucket, key: ball.id }]);
+    // Remove the highlight after the pulse
     setTimeout(() => {
-      setBusy(false);
-      setLastResult({
-        bucket: result.bucket,
-        mult: result.multiplier,
-        win: result.payout > bet,
-      });
-      setHistory((h) => [result.multiplier, ...h].slice(0, 20));
-      if (result.payout > 0) winCoins("plinko", result.payout);
-      pushHistory({
-        game: "Plinko",
-        bet,
-        result: result.payout,
-        net: result.payout - bet,
-      });
-      if (result.payout >= bet * 5) {
+      setHighlights((cur) => cur.filter((h) => h.key !== ball.id));
+    }, 700);
+
+    if (ball.payout > 0) {
+      winCoins("plinko", ball.payout);
+      if (ball.payout >= ball.bet * 10) {
         playSfx("bigWin");
-        fireConfetti(result.payout >= bet * 30 ? "big" : "small");
-      } else if (result.payout > 0) {
+        fireConfetti(ball.payout >= ball.bet * 50 ? "big" : "small");
+      } else if (ball.payout >= ball.bet) {
         playSfx("win");
       } else {
-        playSfx("lose");
+        playSfx("click"); // small fractional return
       }
-    }, dur + 100);
+    } else {
+      playSfx("lose");
+    }
+    pushHistory({
+      game: "Plinko",
+      bet: ball.bet,
+      result: ball.payout,
+      net: ball.payout - ball.bet,
+    });
   }
+
+  // Auto-drop loop
+  useEffect(() => {
+    if (autoRemaining <= 0) return;
+    const id = window.setTimeout(() => {
+      const ok = dropOne();
+      setAutoRemaining((n) => (ok ? n - 1 : 0));
+    }, 120);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRemaining, active.length]);
 
   return (
     <div className="px-4 lg:px-6 py-4 grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
@@ -138,12 +182,17 @@ export default function Plinko() {
         <div className="flex items-baseline gap-3 mb-4">
           <h1 className="heading text-2xl sm:text-3xl">Plinko</h1>
           <div className="text-text-secondary text-sm">
-            Drop the ball · {PLINKO_ROWS} rows · RTP ≈ {(rtp * 100).toFixed(1)}%
+            Drop multiple balls · {PLINKO_ROWS} rows · RTP ≈ {(rtp * 100).toFixed(1)}%
           </div>
+          {active.length > 0 && (
+            <div className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/15 border border-accent/30 text-[10px] uppercase tracking-wider font-bold text-accent-light">
+              <Zap size={11} /> {active.length} in flight
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-4 items-start">
-          <div className="rounded-2xl bg-black/40 border border-white/5 p-3">
+          <div className="rounded-2xl bg-black/40 border border-white/5 p-3 overflow-hidden">
             <div
               className="relative mx-auto"
               style={{ width: BOARD_WIDTH, maxWidth: "100%", height: BOARD_HEIGHT }}
@@ -151,6 +200,7 @@ export default function Plinko() {
               <svg
                 viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`}
                 className="absolute inset-0 w-full h-full"
+                preserveAspectRatio="xMidYMid meet"
               >
                 {/* Pegs */}
                 {Array.from({ length: PLINKO_ROWS }).map((_, r) =>
@@ -166,57 +216,35 @@ export default function Plinko() {
                 )}
               </svg>
 
-              {/* Ball */}
+              {/* Active balls */}
               <AnimatePresence>
-                {ballSteps && (
-                  <motion.div
-                    key={ballSteps[0].x + "-" + ballSteps.length + "-" + Math.random()}
-                    initial={{ x: ballSteps[0].x - BALL_RADIUS, y: ballSteps[0].y - BALL_RADIUS, opacity: 1 }}
-                    animate={{
-                      x: ballSteps.map((s) => s.x - BALL_RADIUS),
-                      y: ballSteps.map((s) => s.y - BALL_RADIUS),
-                    }}
-                    exit={{ opacity: 0 }}
-                    transition={{
-                      duration: 0.08 * (ballSteps.length - 1),
-                      times: ballSteps.map((_, i) => i / (ballSteps.length - 1)),
-                      ease: "linear",
-                    }}
-                    style={{
-                      position: "absolute",
-                      width: BALL_RADIUS * 2,
-                      height: BALL_RADIUS * 2,
-                      borderRadius: "50%",
-                      background: "radial-gradient(circle at 35% 35%, #FFD78A, #FFC842 60%, #B45309)",
-                      boxShadow: "0 0 10px rgba(255,200,66,0.7)",
-                      pointerEvents: "none",
-                    }}
-                  />
-                )}
+                {active.map((ball) => (
+                  <BallDot key={ball.id} ball={ball} radius={BALL_RADIUS} />
+                ))}
               </AnimatePresence>
 
               {/* Buckets */}
               <div
                 className="absolute left-0 right-0 flex justify-center gap-[2px]"
-                style={{ bottom: 0, height: 36 }}
+                style={{ bottom: 0, height: 38 }}
               >
                 {layout.map((m, i) => {
-                  const isHighlight = lastResult?.bucket === i && !busy;
+                  const isHot = highlights.some((h) => h.bucket === i);
                   return (
                     <motion.div
                       key={i}
                       animate={
-                        isHighlight
+                        isHot
                           ? { scale: [1, 1.18, 1], y: [0, -4, 0] }
                           : { scale: 1, y: 0 }
                       }
-                      transition={{ duration: 0.5, repeat: isHighlight ? 1 : 0 }}
+                      transition={{ duration: 0.55 }}
                       className="flex items-center justify-center font-bold rounded-md text-[10px] sm:text-xs"
                       style={{
                         width: xStep - 2,
                         background: bucketColor(m),
                         color: m === 0 ? "#FFFFFF99" : "#0F0E1A",
-                        boxShadow: isHighlight
+                        boxShadow: isHot
                           ? `0 0 16px ${bucketColor(m)}, inset 0 -2px 4px rgba(0,0,0,0.3)`
                           : "inset 0 -2px 4px rgba(0,0,0,0.3)",
                       }}
@@ -228,24 +256,30 @@ export default function Plinko() {
               </div>
             </div>
 
-            <div className="mt-3 min-h-[28px] text-center text-sm">
-              {lastResult ? (
-                <span
-                  className={
-                    lastResult.win ? "text-win font-bold" : "text-rose-300 font-bold"
-                  }
-                >
-                  {lastResult.mult === 0
-                    ? `0× · Lost ${fmt(bet)}`
-                    : lastResult.win
-                      ? `${lastResult.mult}× · Won ${fmt(bet * lastResult.mult - bet)}`
-                      : `${lastResult.mult}× · Net ${fmt(bet * lastResult.mult - bet)}`}
-                </span>
-              ) : busy ? (
-                <span className="text-text-secondary">Falling...</span>
-              ) : (
-                <span className="text-text-secondary">Drop a ball.</span>
-              )}
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={dropOne}
+                disabled={balance < bet}
+                className="flex-1 btn-primary text-base flex items-center justify-center gap-2"
+              >
+                <Play size={16} /> Drop ball
+              </button>
+              <button
+                onClick={() =>
+                  setAutoRemaining((cur) =>
+                    cur > 0 ? 0 : Math.min(50, Math.floor(balance / bet))
+                  )
+                }
+                disabled={balance < bet}
+                className={`px-3 py-2 rounded-2xl text-sm font-semibold border transition disabled:opacity-40 ${
+                  autoRemaining > 0
+                    ? "bg-rose-500/15 border-rose-500/40 text-rose-200"
+                    : "bg-bg-elevated border-white/10 hover:bg-accent/20 hover:border-accent/40"
+                }`}
+                title="Drop a stream of balls automatically"
+              >
+                {autoRemaining > 0 ? `Stop (${autoRemaining})` : "Auto × 50"}
+              </button>
             </div>
           </div>
 
@@ -261,8 +295,7 @@ export default function Plinko() {
                   return (
                     <button
                       key={r}
-                      onClick={() => !busy && setRisk(r)}
-                      disabled={busy}
+                      onClick={() => setRisk(r)}
                       className={`px-2 py-2 rounded-lg border text-xs font-bold transition ${
                         active
                           ? "border-accent bg-accent/15 shadow-glow-sm"
@@ -285,7 +318,7 @@ export default function Plinko() {
             <div className="card-base p-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary">
-                  Bet
+                  Bet per ball
                 </span>
                 <span className="text-[10px] text-text-secondary">{fmt(bet)}</span>
               </div>
@@ -297,30 +330,20 @@ export default function Plinko() {
                     Math.min(MAX_BET, Math.max(1, Math.floor(Number(e.target.value) || 1)))
                   )
                 }
-                disabled={busy}
-                className="w-full bg-bg-elevated rounded-lg px-3 py-2 outline-none border border-white/5 focus:border-accent/50 disabled:opacity-50"
+                className="w-full bg-bg-elevated rounded-lg px-3 py-2 outline-none border border-white/5 focus:border-accent/50"
               />
               <div className="flex flex-wrap gap-1 mt-2">
                 {BET_PRESETS.map((p) => (
                   <button
                     key={p}
                     onClick={() => setBet(p)}
-                    disabled={busy}
-                    className="px-2 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition disabled:opacity-40"
+                    className="px-2 py-1 rounded-md text-xs font-semibold bg-bg-elevated hover:bg-accent/20 transition"
                   >
                     {p >= 1000 ? `${p / 1000}K` : p}
                   </button>
                 ))}
               </div>
             </div>
-
-            <button
-              onClick={play}
-              disabled={busy || balance < bet}
-              className="btn-primary text-base flex items-center justify-center gap-2"
-            >
-              <Play size={16} /> {busy ? "Falling..." : "Drop ball"}
-            </button>
           </div>
         </div>
       </div>
@@ -366,6 +389,58 @@ export default function Plinko() {
       </aside>
     </div>
   );
+}
+
+/**
+ * A single ball animated through its waypoints. Each segment between two pegs
+ * uses an easeOut + tiny bounce so the motion feels like a physical fall.
+ */
+function BallDot({
+  ball,
+  radius,
+}: {
+  ball: ActiveBall;
+  radius: number;
+}) {
+  // Build the keyframe sequences once per mount
+  const xKey = ball.waypoints.map((p) => p.x - radius);
+  const yKey = ball.waypoints.map((p) => p.y - radius);
+  const totalDur = ROW_DURATION_MS * (ball.waypoints.length - 1);
+  // Mirror the dur into seconds and build evenly spaced times
+  const times = ball.waypoints.map((_, i) => i / (ball.waypoints.length - 1));
+
+  return (
+    <motion.div
+      initial={{ x: xKey[0], y: yKey[0], opacity: 1 }}
+      animate={{
+        x: xKey,
+        y: yKey,
+        // Tiny bounce at each peg via a single keyframed scale
+        scale: ball.waypoints.map((_, i) => (i % 2 === 0 ? 1 : 0.92)),
+      }}
+      exit={{ opacity: 0, scale: 0.6 }}
+      transition={{
+        duration: totalDur / 1000,
+        times,
+        ease: "easeIn",
+        scale: { duration: totalDur / 1000, times, ease: "easeOut" },
+      }}
+      style={{
+        position: "absolute",
+        width: radius * 2,
+        height: radius * 2,
+        borderRadius: "50%",
+        pointerEvents: "none",
+        background:
+          "radial-gradient(circle at 30% 30%, #FFE7A5, #FFC842 55%, #B45309)",
+        boxShadow:
+          "0 0 12px rgba(255,200,66,0.7), inset -1px -2px 3px rgba(0,0,0,0.35)",
+      }}
+      // disable layout animation overhead
+      layout={false}
+    />
+  );
+  void BOUNCE_AMPLITUDE; // referenced for future physical bounce tuning
 }
 
 function bucketColor(m: number): string {

@@ -28,6 +28,10 @@ import Plinko from "@/pages/Plinko";
 import Keno from "@/pages/Keno";
 import Rps from "@/pages/Rps";
 import Diamonds from "@/pages/Diamonds";
+import Chicken from "@/pages/Chicken";
+import Aviator from "@/pages/Aviator";
+import SweetBonanza from "@/pages/SweetBonanza";
+import GatesOfOlympus from "@/pages/GatesOfOlympus";
 import { StubPage, NotFound } from "@/pages/Stub";
 
 export default function App() {
@@ -79,6 +83,10 @@ export default function App() {
         <Route path="/play/keno" element={<Keno />} />
         <Route path="/play/rps" element={<Rps />} />
         <Route path="/play/diamonds" element={<Diamonds />} />
+        <Route path="/play/chicken" element={<Chicken />} />
+        <Route path="/play/aviator" element={<Aviator />} />
+        <Route path="/play/sweet-bonanza" element={<SweetBonanza />} />
+        <Route path="/play/gates-of-olympus" element={<GatesOfOlympus />} />
         {/* Coming-soon mocked games redirect back to casino */}
         <Route path="/play/" element={<Navigate to="/casino" replace />} />
         <Route path="/play/cs-:slug" element={<Navigate to="/casino" replace />} />
