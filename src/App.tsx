@@ -25,6 +25,9 @@ import CoinFlip from "@/pages/CoinFlip";
 import Wheel from "@/pages/Wheel";
 import Hilo from "@/pages/Hilo";
 import Plinko from "@/pages/Plinko";
+import Keno from "@/pages/Keno";
+import Rps from "@/pages/Rps";
+import Diamonds from "@/pages/Diamonds";
 import { StubPage, NotFound } from "@/pages/Stub";
 
 export default function App() {
@@ -73,6 +76,9 @@ export default function App() {
         <Route path="/play/wheel" element={<Wheel />} />
         <Route path="/play/hilo" element={<Hilo />} />
         <Route path="/play/plinko" element={<Plinko />} />
+        <Route path="/play/keno" element={<Keno />} />
+        <Route path="/play/rps" element={<Rps />} />
+        <Route path="/play/diamonds" element={<Diamonds />} />
         {/* Coming-soon mocked games redirect back to casino */}
         <Route path="/play/" element={<Navigate to="/casino" replace />} />
         <Route path="/play/cs-:slug" element={<Navigate to="/casino" replace />} />

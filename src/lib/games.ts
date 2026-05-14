@@ -203,6 +203,48 @@ const PLAYABLE: GameDef[] = [
       icon: "🟣",
     },
   },
+  {
+    slug: "keno",
+    title: "Keno",
+    provider: "Yahu Originals",
+    category: "originals",
+    badge: "NEW",
+    available: true,
+    livePlayers: 2054,
+    cover: {
+      gradient: "linear-gradient(140deg, #06B6D4 0%, #155E75 100%)",
+      accent: "#67E8F9",
+      icon: "🎱",
+    },
+  },
+  {
+    slug: "rps",
+    title: "Rock Paper Scissors",
+    provider: "Yahu Originals",
+    category: "originals",
+    badge: "NEW",
+    available: true,
+    livePlayers: 134,
+    cover: {
+      gradient: "linear-gradient(140deg, #F87171 0%, #7F1D1D 100%)",
+      accent: "#FECACA",
+      icon: "✂️",
+    },
+  },
+  {
+    slug: "diamonds",
+    title: "Diamonds",
+    provider: "Yahu Originals",
+    category: "originals",
+    badge: "NEW",
+    available: true,
+    livePlayers: 130,
+    cover: {
+      gradient: "linear-gradient(140deg, #C084FC 0%, #6B21A8 100%)",
+      accent: "#E9D5FF",
+      icon: "💎",
+    },
+  },
 ];
 
 /** ------------------------------------------------------------------------
@@ -221,10 +263,8 @@ type CSDef = readonly [
 
 const COMING_SOON: CSDef[] = [
   /* ----- Originals (the games we haven't built yet) ----- */
-  ["Keno",          "Yahu Originals",   "originals", "linear-gradient(140deg, #06B6D4 0%, #155E75 100%)", "🎱", 2054],
   ["Chicken",       "Yahu Originals",   "originals", "linear-gradient(140deg, #38BDF8 0%, #0369A1 100%)", "🐔", 706],
   ["Aviator",       "Yahu Originals",   "originals", "linear-gradient(140deg, #DC2626 0%, #7F1D1D 100%)", "✈️", 1248],
-  ["Diamonds",      "Yahu Originals",   "originals", "linear-gradient(140deg, #C084FC 0%, #6B21A8 100%)", "💎", 130],
   ["Zoo",           "Yahu Originals",   "originals", "linear-gradient(140deg, #FB923C 0%, #9A3412 100%)", "🦁", 378],
   ["Video Poker",   "Yahu Originals",   "originals", "linear-gradient(140deg, #1E40AF 0%, #1E1B4B 100%)", "🂠", 198],
   ["Texas Hold'em", "Yahu Originals",   "originals", "linear-gradient(140deg, #0E5A36 0%, #052e1a 100%)", "♠", 305],
@@ -235,7 +275,6 @@ const COMING_SOON: CSDef[] = [
   ["Wheel of Fortune","Yahu Originals", "originals", "linear-gradient(140deg, #F59E0B 0%, #DC2626 100%)", "🍀", 271],
   ["Cave of Plunder","Yahu Originals",  "originals", "linear-gradient(140deg, #78350F 0%, #1C0E04 100%)", "🪙", 92],
   ["Stairs",        "Yahu Originals",   "originals", "linear-gradient(140deg, #14B8A6 0%, #115E59 100%)", "🪜", 187],
-  ["Rock Paper Scissors","Yahu Originals", "originals","linear-gradient(140deg, #F87171 0%, #7F1D1D 100%)", "✂️", 134],
   ["Tome of Life",  "Yahu Originals",   "originals", "linear-gradient(140deg, #A855F7 0%, #581C87 100%)", "📜", 249],
 
   /* ----- Slots (curated favourites) ----- */
